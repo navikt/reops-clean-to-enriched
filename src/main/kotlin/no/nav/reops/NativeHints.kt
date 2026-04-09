@@ -32,6 +32,9 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
         hints.resources().registerPattern("dbip-country-lite.mmdb")
         hints.resources().registerPattern("static/*")
 
+        // Hibernate batch loading needs reflective array instantiation for entity ID types
+        reflection.registerType(java.util.UUID::class.java.arrayType(), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS)
+
         // Remove stale ua-parser resource hint (library removed)
 
         // Register all data classes used for Jackson serialization/deserialization
