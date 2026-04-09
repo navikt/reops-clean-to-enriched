@@ -31,8 +31,8 @@ spec:
     pool: nav-dev
   gcp:
     sqlInstances:
-      - type: POSTGRES_17
-      - tier: db-f1-micro
+      - type: POSTGRES_18
+        tier: db-f1-micro
         databases:
           - name: reops-umami
   accessPolicy:
