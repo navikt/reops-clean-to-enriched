@@ -95,6 +95,26 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
             }
         }
 
+        // Register Flyway migration SQL files so they are discoverable in the native image
+        hints.resources().registerPattern("db/migration/.*")
+
+        // Flyway uses reflection to call isFlywaySpecificVersionOf on its exception classes
+        listOf(
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlNoIntegratedAuthException",
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlServerUntrustedCertificateSqlException",
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlServerEncryptionException",
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywayPgUpgradeRequiredException",
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlServerWindowsAuthException",
+            "org.flywaydb.core.internal.exception.FlywaySqlException",
+        ).forEach { className ->
+            try {
+                val clazz = Class.forName(className, false, classLoader ?: javaClass.classLoader)
+                reflection.registerType(clazz, MemberCategory.INVOKE_DECLARED_METHODS)
+            } catch (_: ClassNotFoundException) {
+                // Class may not be present in all Flyway editions; skip safely
+            }
+        }
+
         // Register @DltHandler method invoked reflectively by Spring Kafka
         reflection.registerMethod(
             KafkaService::class.java.getMethod("handleDlt", ConsumerRecord::class.java),

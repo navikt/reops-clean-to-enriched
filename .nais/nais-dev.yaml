@@ -15,9 +15,13 @@ spec:
     path: /internal/health
     initialDelay: 5
   replicas:
-    min: 1
+    min: 2
     max: 4
-    cpuThresholdPercentage: 80
+    scalingStrategy:
+      kafka:
+        topic: team-researchops.analytics-clean
+        consumerGroup: reops-umami
+        threshold: 100
   prometheus:
     enabled: true
     path: /internal/prometheus

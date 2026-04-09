@@ -15,18 +15,22 @@ spec:
     path: /internal/health
     initialDelay: 5
   replicas:
-    min: 4
-    max: 14
-    cpuThresholdPercentage: 50
+    min: 2
+    max: 10
+    scalingStrategy:
+      kafka:
+        topic: team-researchops.analytics-clean
+        consumerGroup: reops-umami
+        threshold: 100
   prometheus:
     enabled: true
     path: /internal/prometheus
   resources:
     limits:
-      memory: 1024Mi
+      memory: 256Mi
     requests:
-      cpu: "200m"
-      memory: 512Mi
+      cpu: "400m"
+      memory: 124Mi
   kafka:
     pool: nav-prod
   gcp:
