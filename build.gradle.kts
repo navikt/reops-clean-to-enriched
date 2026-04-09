@@ -5,7 +5,7 @@ plugins {
 	kotlin("plugin.jpa") version "2.3.10" apply false
 	id("org.springframework.boot") version "4.0.3" apply false
 	id("io.spring.dependency-management") version "1.1.7" apply false
-	id("org.graalvm.buildtools.native") version "1.0.0" apply false
+	id("org.graalvm.buildtools.native") version "0.11.5" apply false
 	kotlin("jvm") version "2.2.21"
 }
 
@@ -45,13 +45,6 @@ subprojects {
 		jvmArgs("--enable-native-access=ALL-UNNAMED")
 	}
 
-	// Workaround for graalvm/native-build-tools#760:
-	// collectReachabilityMetadata is broken on Gradle 9 in multi-module projects
-	pluginManager.withPlugin("org.graalvm.buildtools.native") {
-		tasks.matching { it.name == "collectReachabilityMetadata" }.configureEach {
-			enabled = false
-		}
-	}
 }
 dependencies {
 	implementation(kotlin("stdlib-jdk8"))
