@@ -35,6 +35,23 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
         // Hibernate batch loading needs reflective array instantiation for entity ID types
         reflection.registerType(java.util.UUID::class.java.arrayType(), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS)
 
+        // Caffeine dynamically loads cache implementation classes via MethodHandles.Lookup.findClass().
+        // SSW = factory for Strong keys + Strong values + Write expiry
+        // PSW = node for Strong keys + Strong values + Write expiry
+        listOf(
+            "com.github.benmanes.caffeine.cache.SSW",
+            "com.github.benmanes.caffeine.cache.PSW",
+        ).forEach { className ->
+            try {
+                val clazz = Class.forName(className, false, classLoader ?: javaClass.classLoader)
+                reflection.registerType(
+                    clazz,
+                    MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
+                    MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+                )
+            } catch (_: ClassNotFoundException) {}
+        }
+
         // MaxMind GeoIP2 uses @MaxMindDbConstructor annotations discovered via reflection
         listOf(
             "com.maxmind.db.Metadata",
