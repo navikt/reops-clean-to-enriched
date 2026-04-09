@@ -168,6 +168,23 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
             }
         }
 
+        // Kafka serializer/deserializer classes referenced by name in application.yaml
+        listOf(
+            "org.apache.kafka.common.serialization.StringSerializer",
+            "org.apache.kafka.common.serialization.StringDeserializer",
+            "org.springframework.kafka.support.serializer.JacksonJsonSerializer",
+            "org.springframework.kafka.support.serializer.JacksonJsonDeserializer",
+        ).forEach { className ->
+            try {
+                val clazz = Class.forName(className, false, classLoader ?: javaClass.classLoader)
+                reflection.registerType(
+                    clazz,
+                    MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
+                    MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+                )
+            } catch (_: ClassNotFoundException) {}
+        }
+
         // Register @DltHandler method invoked reflectively by Spring Kafka
         reflection.registerMethod(
             KafkaService::class.java.getMethod("handleDlt", ConsumerRecord::class.java),
