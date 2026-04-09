@@ -83,7 +83,7 @@ graalvmNative {
 	binaries {
 		named("main") {
 			imageName.set("app")
-			mainClass.set("no.nav.reops.UmamiConsumerApplicationKt")
+			mainClass.set("no.nav.reops.UmamiApplicationKt")
 		}
 	}
 	binaries.all {
