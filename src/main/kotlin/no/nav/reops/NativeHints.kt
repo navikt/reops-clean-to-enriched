@@ -35,6 +35,34 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
         // Hibernate batch loading needs reflective array instantiation for entity ID types
         reflection.registerType(java.util.UUID::class.java.arrayType(), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS)
 
+        // MaxMind GeoIP2 uses @MaxMindDbConstructor annotations discovered via reflection
+        listOf(
+            "com.maxmind.db.Metadata",
+            "com.maxmind.geoip2.model.CountryResponse",
+            "com.maxmind.geoip2.model.AbstractCountryResponse",
+            "com.maxmind.geoip2.model.AbstractResponse",
+            "com.maxmind.geoip2.record.Country",
+            "com.maxmind.geoip2.record.Continent",
+            "com.maxmind.geoip2.record.RepresentedCountry",
+            "com.maxmind.geoip2.record.MaxMind",
+            "com.maxmind.geoip2.record.Traits",
+            "com.maxmind.geoip2.record.AbstractNamedRecord",
+            "com.maxmind.geoip2.record.AbstractRecord",
+        ).forEach { className ->
+            try {
+                val clazz = Class.forName(className, false, classLoader ?: javaClass.classLoader)
+                reflection.registerType(
+                    clazz,
+                    MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
+                    MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+                    MemberCategory.INVOKE_DECLARED_METHODS,
+                    MemberCategory.INVOKE_PUBLIC_METHODS,
+                    MemberCategory.ACCESS_DECLARED_FIELDS,
+                    MemberCategory.ACCESS_PUBLIC_FIELDS,
+                )
+            } catch (_: ClassNotFoundException) {}
+        }
+
         // Remove stale ua-parser resource hint (library removed)
 
         // Register all data classes used for Jackson serialization/deserialization
