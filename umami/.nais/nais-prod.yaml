@@ -1,0 +1,49 @@
+apiVersion: nais.io/v1alpha1
+kind: Application
+metadata:
+  name: reops-umami
+  namespace: team-researchops
+  labels:
+    team: team-researchops
+spec:
+  image: "{{ image }}"
+  port: 8080
+  liveness:
+    path: /internal/health
+    initialDelay: 30
+  readiness:
+    path: /internal/health
+    initialDelay: 5
+  replicas:
+    min: 4
+    max: 14
+    cpuThresholdPercentage: 50
+  prometheus:
+    enabled: true
+    path: /internal/prometheus
+  resources:
+    limits:
+      memory: 1024Mi
+    requests:
+      cpu: "200m"
+      memory: 512Mi
+  kafka:
+    pool: nav-prod
+  gcp:
+    sqlInstances:
+      - type: POSTGRES_15
+        databases:
+          - name: reops-umami
+  accessPolicy:
+    outbound:
+      external:
+        - host: nav-prod-kafka-nav-prod.aivencloud.com
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: kubernetes
+    - name: JAVA_TOOL_OPTIONS
+      value: >-
+        -XX:+UseZGC
+        -XX:MaxRAMPercentage=70
+        -XX:InitialRAMPercentage=50
+        -XX:+ExitOnOutOfMemoryError

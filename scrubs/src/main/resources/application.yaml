@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: reops-scrubs
+  kafka:
+    bootstrap-servers: localhost:9094
+    listener:
+      ack-mode: record
+      concurrency: 10
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+    consumer:
+      group-id: reops-scrubs
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+      properties:
+        spring.json.value.default.type: no.nav.reops.event.Event
+        spring.json.trusted.packages: "*"
+        max.poll.records: 500
+        max.poll.interval.ms: 350000
+        fetch.max.bytes: 1048576  # 1 MB
+        fetch.min.bytes: 1
+        fetch.max.wait.ms: 100
+  threads:
+    virtual:
+      enabled: true
+  main:
+    banner-mode: off
+    web-application-type: reactive
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      base-path: /internal/
+      exposure:
+        include: info, health, metrics, prometheus
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: WARN
+    no.nav.reops: INFO
+    org.springframework.web.reactive.function.client.ExchangeFunctions: WARN
+    reactor.netty.http.client: WARN
+    org.apache.kafka.clients.NetworkClient: WARN
+    org.apache.kafka.clients.Metadata: WARN
+    org.apache.kafka.common.config.AbstractConfig: WARN

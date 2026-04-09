@@ -1,0 +1,27 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9094
+    topic: enriched
+    dlt-topic: opensearch-dlt
+    properties:
+      security.protocol: PLAINTEXT
+    retry:
+      backoff-delay: 1000
+server:
+  port: 8093
+
+reops:
+  opensearch:
+    host: localhost
+    port: 9400
+    index: events
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    no.nav.reops: TRACE
+    org.springframework.web.reactive.function.client.ExchangeFunctions: DEBUG
+    reactor.netty.http.client: DEBUG
+    org.apache.kafka.clients.NetworkClient: WARN
+    org.apache.kafka.clients.Metadata: WARN

@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: reops-scrubs-test
+  kafka:
+    topic: test-topic
+    output-topic: test-output-topic
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    retry:
+      backoff-delay: 1000
+    consumer:
+      group-id: test-group
+
+
+logging:
+  level:
+    root: ERROR
+    no.nav.reops: INFO

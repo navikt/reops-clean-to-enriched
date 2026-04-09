@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: reops-bigquery-test
+  kafka:
+    topic: test-topic
+    website-topic: test-website-topic
+    dlt-topic: test-bigquery-dlt
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    retry:
+      backoff-delay: 1000
+    listener:
+      type: batch
+      poll-timeout: 1000
+    consumer:
+      group-id: test-group
+
+reops:
+  bigquery:
+    project: test-project
+    dataset: test-dataset
+    tables:
+      website-event: test_website_event
+      event-data: test_event_data
+      session: test_session
+      session-data: test_session_data
+      website: test_website
+
+logging:
+  level:
+    root: ERROR
+    no.nav.reops: INFO

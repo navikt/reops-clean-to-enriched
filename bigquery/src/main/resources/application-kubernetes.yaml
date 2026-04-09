@@ -1,0 +1,28 @@
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS}
+    topic: team-researchops.analytics-enriched
+    website-topic: team-researchops.analytics-website
+    dlt-topic: team-researchops.analytics-bigquery-dlt
+    properties:
+      security.protocol: SSL
+      ssl.endpoint.identification.algorithm: ""
+      ssl.truststore.type: JKS
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_PATH}
+      ssl.truststore.password: ${KAFKA_CREDSTORE_PASSWORD}
+      ssl.keystore.type: PKCS12
+      ssl.keystore.location: ${KAFKA_KEYSTORE_PATH}
+      ssl.keystore.password: ${KAFKA_CREDSTORE_PASSWORD}
+      ssl.key.password: ${KAFKA_CREDSTORE_PASSWORD}
+      reconnect.backoff.ms: 5000
+      reconnect.backoff.max.ms: 10000
+
+reops:
+  bigquery:
+    project: ${GCP_TEAM_PROJECT_ID}
+    dataset: ${REOPS_BIGQUERY_DATASET}
+
+logging:
+  structured:
+    format:
+      console: logstash

@@ -1,0 +1,36 @@
+name: "PR - scrubs"
+run-name: "PR - scrubs"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scrubs/**'
+      - 'contract/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle/**'
+      - 'gradle.properties'
+
+jobs:
+  test:
+    name: "Run tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Setup gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-disabled: true
+      - name: Run tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew :scrubs:clean :scrubs:test

@@ -25,3 +25,11 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+/.idea/
+/target/
+/build/
+.gradle/
+/.compose/kafka/broker-1/
+/.compose/kafka/controller-1/
+.DS_Store
+!gradle/wrapper/gradle-wrapper.jar

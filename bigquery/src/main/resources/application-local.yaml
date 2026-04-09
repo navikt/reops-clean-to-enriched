@@ -1,0 +1,26 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9094
+    topic: enriched
+    website-topic: website
+    dlt-topic: bigquery-dlt
+    properties:
+      security.protocol: PLAINTEXT
+    retry:
+      backoff-delay: 1000
+server:
+  port: 8092
+
+reops:
+  bigquery:
+    project: local
+    dataset: umami
+    endpoint: localhost:9060
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    no.nav.reops: TRACE
+    org.apache.kafka.clients.NetworkClient: WARN
+    org.apache.kafka.clients.Metadata: WARN

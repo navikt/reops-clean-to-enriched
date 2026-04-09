@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Reops Umami – Website Dashboard</title>
+    <link href="style.css" rel="stylesheet">
+</head>
+<body>
+
+<h1>Reops Umami Website Dashboard</h1>
+
+<div class="card">
+    <h2>Add Website</h2>
+    <form id="createForm">
+        <div class="form-row">
+            <label>ID<input class="mono" id="createId" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" placeholder="auto-gen if empty"
+                            title="UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                            type="text"></label>
+            <label>Name<input id="createName" placeholder="nav.no" required type="text"></label>
+            <label>Domain<input id="createDomain" placeholder="www.nav.no" required type="text"></label>
+            <button class="btn-primary" type="submit">Create</button>
+        </div>
+    </form>
+</div>
+
+<div class="card" id="editCard" style="display:none;">
+    <h2>Edit Website</h2>
+    <form id="editForm">
+        <input id="editId" type="hidden">
+        <div class="form-row">
+            <label>ID <input class="mono" id="editIdDisplay" readonly type="text"></label>
+            <label>Name <input id="editName" required type="text"></label>
+            <label>Domain <input id="editDomain" required type="text"></label>
+            <button class="btn-primary" type="submit">Save</button>
+            <button class="btn-secondary" onclick="cancelEdit()" type="button">Cancel</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h2 style="margin:0;">Websites</h2>
+        <button class="btn-secondary" onclick="loadWebsites()">↻ Refresh</button>
+    </div>
+    <div id="tableContainer"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    const API = '/api/websites';
+
+    function toast(msg, type = 'success') {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = `toast ${type} show`;
+        setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    async function api(path, opts = {}) {
+        const res = await fetch(path, {headers: {'Content-Type': 'application/json'}, ...opts});
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || res.statusText);
+        }
+        if (res.status === 204) return null;
+        return res.json();
+    }
+
+    async function loadWebsites() {
+        try {
+            const websites = await api(API);
+            const container = document.getElementById('tableContainer');
+            if (!websites.length) {
+                container.innerHTML = '<div class="empty">No websites registered yet.</div>';
+                return;
+            }
+            container.innerHTML = `
+            <table>
+                <thead><tr><th>ID</th><th>Name</th><th>Domain</th><th>Updated</th><th>Actions</th></tr></thead>
+                <tbody>${websites.map(w => `
+                    <tr>
+                        <td class="mono id-col" title="${w.websiteId}">${w.websiteId}</td>
+                        <td>${esc(w.name)}</td>
+                        <td>${esc(w.domain)}</td>
+                        <td class="mono">${new Date(w.updatedAt).toLocaleString('nb-NO', {hour12: false})}</td>
+                        <td class="actions">
+                            <button class="btn-secondary" onclick="startEdit('${w.websiteId}','${esc(w.name)}','${esc(w.domain)}')">Edit</button>
+                            <button class="btn-danger" onclick="deleteWebsite('${w.websiteId}')">Delete</button>
+                        </td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>`;
+        } catch (e) {
+            toast('Failed to load: ' + e.message, 'error');
+        }
+    }
+
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const body = {
+                name: document.getElementById('createName').value,
+                domain: document.getElementById('createDomain').value
+            };
+            const id = document.getElementById('createId').value.trim();
+            if (id) body.websiteId = id;
+            await api(API, {
+                method: 'POST',
+                body: JSON.stringify(body)
+            });
+            document.getElementById('createForm').reset();
+            toast('Website created');
+            loadWebsites();
+        } catch (e) {
+            toast('Create failed: ' + e.message, 'error');
+        }
+    });
+
+    function startEdit(id, name, domain) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editIdDisplay').value = id;
+        document.getElementById('editName').value = name;
+        document.getElementById('editDomain').value = domain;
+        document.getElementById('editCard').style.display = 'block';
+        document.getElementById('editName').focus();
+    }
+
+    function cancelEdit() {
+        document.getElementById('editCard').style.display = 'none';
+    }
+
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('editId').value;
+        try {
+            await api(`${API}/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: document.getElementById('editName').value,
+                    domain: document.getElementById('editDomain').value
+                })
+            });
+            cancelEdit();
+            toast('Website updated');
+            loadWebsites();
+        } catch (e) {
+            toast('Update failed: ' + e.message, 'error');
+        }
+    });
+
+    async function deleteWebsite(id) {
+        if (!confirm('Delete this website?')) return;
+        try {
+            await api(`${API}/${id}`, {method: 'DELETE'});
+            toast('Website deleted');
+            loadWebsites();
+        } catch (e) {
+            toast('Delete failed: ' + e.message, 'error');
+        }
+    }
+
+    loadWebsites();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9094
+    topic: clean
+    output-topic: enriched
+    website-topic: website
+    properties:
+      security.protocol: PLAINTEXT
+    retry:
+      backoff-delay: 1000
+  datasource:
+    url: jdbc:postgresql://localhost:5432/reops-umami
+    username: reops-umami
+    password: reops-umami
+server:
+  port: 8088
+
+app:
+  secret: kake
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    no.nav.reops: TRACE
+    org.springframework.web.reactive.function.client.ExchangeFunctions: DEBUG
+    reactor.netty.http.client: DEBUG
+    org.apache.kafka.clients.NetworkClient: WARN
+    org.apache.kafka.clients.Metadata: WARN
