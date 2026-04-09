@@ -101,8 +101,10 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
         // Flyway uses reflection to call isFlywaySpecificVersionOf on its exception classes
         listOf(
             "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlNoIntegratedAuthException",
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlNoDriversForInteractiveAuthException",
             "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlServerUntrustedCertificateSqlException",
             "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlServerEncryptionException",
+            "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlUnableToConnectToDbException",
             "org.flywaydb.core.internal.exception.sqlExceptions.FlywayPgUpgradeRequiredException",
             "org.flywaydb.core.internal.exception.sqlExceptions.FlywaySqlServerWindowsAuthException",
             "org.flywaydb.core.internal.exception.FlywaySqlException",
