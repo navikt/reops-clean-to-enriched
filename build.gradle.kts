@@ -1,12 +1,12 @@
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 
 plugins {
-	id("org.springframework.boot") version "4.0.3"
+	id("org.springframework.boot") version "4.0.5"
 	id("io.spring.dependency-management") version "1.1.7"
-	id("org.graalvm.buildtools.native") version "0.11.5"
-	kotlin("jvm") version "2.3.10"
-	kotlin("plugin.spring") version "2.3.10"
-	kotlin("plugin.jpa") version "2.3.10"
+	id("org.graalvm.buildtools.native") version "1.0.0"
+	kotlin("jvm") version "2.3.20"
+	kotlin("plugin.spring") version "2.3.20"
+	kotlin("plugin.jpa") version "2.3.20"
 }
 
 group = "no.nav.reops"
@@ -47,15 +47,15 @@ dependencies {
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlin:kotlin-stdlib")
-	implementation("at.yawk.lz4:lz4-java:1.10.4")
+	implementation("at.yawk.lz4:lz4-java:1.11.0")
 	implementation("io.micrometer:micrometer-registry-prometheus")
-	implementation("com.maxmind.geoip2:geoip2:4.2.1")
+	implementation("com.maxmind.geoip2:geoip2:5.0.2")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 	testImplementation("org.springframework.kafka:spring-kafka-test")
-	testImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
+	testImplementation("org.mockito.kotlin:mockito-kotlin:6.3.0")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("com.h2database:h2")
 }
