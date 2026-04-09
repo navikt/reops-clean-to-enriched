@@ -17,7 +17,7 @@ spring:
       reconnect.backoff.ms: 5000
       reconnect.backoff.max.ms: 10000
   datasource:
-    url: jdbc:postgresql://${NAIS_DATABASE_REOPS_UMAMI_REOPS_UMAMI_HOST}:${NAIS_DATABASE_REOPS_UMAMI_REOPS_UMAMI_PORT}/${NAIS_DATABASE_REOPS_UMAMI_REOPS_UMAMI_DATABASE}
+    url: ${NAIS_DATABASE_REOPS_UMAMI_REOPS_UMAMI_JDBC_URL}
 
 logging:
   structured:
