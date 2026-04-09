@@ -35,7 +35,8 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
         // Hibernate batch loading needs reflective array instantiation for entity ID types
         reflection.registerType(java.util.UUID::class.java.arrayType(), MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS)
 
-        // Caffeine dynamically loads cache implementation classes via MethodHandles.Lookup.findClass().
+        // Caffeine dynamically loads cache implementation classes via MethodHandles.Lookup.findClass()
+        // and accesses the static FACTORY field via findStaticVarHandle.
         // SSW = factory for Strong keys + Strong values + Write expiry
         // PSW = node for Strong keys + Strong values + Write expiry
         listOf(
@@ -48,6 +49,8 @@ class NativeHintsRegistrar : RuntimeHintsRegistrar {
                     clazz,
                     MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
                     MemberCategory.INVOKE_PUBLIC_CONSTRUCTORS,
+                    MemberCategory.ACCESS_DECLARED_FIELDS,
+                    MemberCategory.ACCESS_PUBLIC_FIELDS,
                 )
             } catch (_: ClassNotFoundException) {}
         }
