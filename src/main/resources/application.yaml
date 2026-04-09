@@ -3,6 +3,9 @@ spring:
     name: reops-umami
   datasource:
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -10,6 +13,13 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        default_batch_fetch_size: 16
+        jdbc:
+          batch_size: 16
+        order_inserts: true
+        order_updates: true
   kafka:
     bootstrap-servers: localhost:9094
     website-topic: website
