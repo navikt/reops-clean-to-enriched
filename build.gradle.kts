@@ -44,6 +44,14 @@ subprojects {
 		useJUnitPlatform()
 		jvmArgs("--enable-native-access=ALL-UNNAMED")
 	}
+
+	// Workaround for graalvm/native-build-tools#760:
+	// collectReachabilityMetadata is broken on Gradle 9 in multi-module projects
+	pluginManager.withPlugin("org.graalvm.buildtools.native") {
+		tasks.matching { it.name == "collectReachabilityMetadata" }.configureEach {
+			enabled = false
+		}
+	}
 }
 dependencies {
 	implementation(kotlin("stdlib-jdk8"))
