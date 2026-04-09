@@ -1,0 +1,29 @@
+name: "PR - umami"
+run-name: "PR - umami"
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: "Run tests"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Setup gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-disabled: true
+      - name: Run tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew clean test

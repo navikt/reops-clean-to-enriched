@@ -33,8 +33,3 @@ replay_pid*
 /.compose/kafka/controller-1/
 .DS_Store
 !gradle/wrapper/gradle-wrapper.jar
-bigquery/build/
-contract/build/
-opensearch/build/
-scrubs/build/
-umami/build/
