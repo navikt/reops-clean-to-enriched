@@ -1,3 +1,5 @@
 rootProject.name = "reops-user-events"
 
-include("contract", "scrubs", "umami", "opensearch", "bigquery")
+listOf("contract", "scrubs", "umami", "opensearch", "bigquery").forEach {
+    if (file(it).isDirectory) include(it)
+}
