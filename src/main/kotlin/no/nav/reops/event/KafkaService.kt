@@ -63,7 +63,7 @@ class KafkaService(
         try {
             if (!websiteService.isAllowed(event.payload.website)) {
                 kafkaEventsUnregistered.increment()
-                LOG.debug(
+                LOG.info(
                     "Filtered event from unregistered websiteId={} key={}",
                     event.payload.website, key
                 )
