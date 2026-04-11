@@ -126,6 +126,20 @@ th {
     text-transform: uppercase;
     color: #8b949e;
     letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+th.sortable:hover {
+    color: #e6edf3;
+}
+
+th.sorted {
+    color: #58a6ff;
 }
 
 td {

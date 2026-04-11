@@ -50,6 +50,9 @@
 
 <script>
     const API = '/api/websites';
+    let currentWebsites = [];
+    let sortColumn = 'name';
+    let sortDirection = 'asc';
 
     function toast(msg, type = 'success') {
         const el = document.getElementById('toast');
@@ -68,30 +71,77 @@
         return res.json();
     }
 
+    const sortableColumns = [
+        {key: 'websiteId', label: 'ID'},
+        {key: 'name', label: 'Name'},
+        {key: 'domain', label: 'Domain'},
+        {key: 'updatedAt', label: 'Updated'},
+    ];
+
+    function sortIndicator(key) {
+        if (sortColumn !== key) return '';
+        return sortDirection === 'asc' ? ' ▲' : ' ▼';
+    }
+
+    function sortWebsites(websites) {
+        return [...websites].sort((a, b) => {
+            let va = a[sortColumn], vb = b[sortColumn];
+            if (sortColumn === 'updatedAt') {
+                va = new Date(va).getTime();
+                vb = new Date(vb).getTime();
+            } else {
+                va = (va || '').toString().toLowerCase();
+                vb = (vb || '').toString().toLowerCase();
+            }
+            if (va < vb) return sortDirection === 'asc' ? -1 : 1;
+            if (va > vb) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function handleSort(key) {
+        if (sortColumn === key) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortColumn = key;
+            sortDirection = 'asc';
+        }
+        renderTable();
+    }
+
+    function renderTable() {
+        const container = document.getElementById('tableContainer');
+        if (!currentWebsites.length) {
+            container.innerHTML = '<div class="empty">No websites registered yet.</div>';
+            return;
+        }
+        const sorted = sortWebsites(currentWebsites);
+        const headers = sortableColumns.map(c =>
+            `<th class="sortable${sortColumn === c.key ? ' sorted' : ''}" onclick="handleSort('${c.key}')">${c.label}${sortIndicator(c.key)}</th>`
+        ).join('') + '<th>Actions</th>';
+
+        container.innerHTML = `
+        <table>
+            <thead><tr>${headers}</tr></thead>
+            <tbody>${sorted.map(w => `
+                <tr>
+                    <td class="mono id-col" title="${w.websiteId}">${w.websiteId}</td>
+                    <td>${esc(w.name)}</td>
+                    <td>${esc(w.domain)}</td>
+                    <td class="mono">${new Date(w.updatedAt).toLocaleString('nb-NO', {hour12: false})}</td>
+                    <td class="actions">
+                        <button class="btn-secondary" onclick="startEdit('${w.websiteId}','${esc(w.name)}','${esc(w.domain)}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteWebsite('${w.websiteId}')">Delete</button>
+                    </td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+    }
+
     async function loadWebsites() {
         try {
-            const websites = await api(API);
-            const container = document.getElementById('tableContainer');
-            if (!websites.length) {
-                container.innerHTML = '<div class="empty">No websites registered yet.</div>';
-                return;
-            }
-            container.innerHTML = `
-            <table>
-                <thead><tr><th>ID</th><th>Name</th><th>Domain</th><th>Updated</th><th>Actions</th></tr></thead>
-                <tbody>${websites.map(w => `
-                    <tr>
-                        <td class="mono id-col" title="${w.websiteId}">${w.websiteId}</td>
-                        <td>${esc(w.name)}</td>
-                        <td>${esc(w.domain)}</td>
-                        <td class="mono">${new Date(w.updatedAt).toLocaleString('nb-NO', {hour12: false})}</td>
-                        <td class="actions">
-                            <button class="btn-secondary" onclick="startEdit('${w.websiteId}','${esc(w.name)}','${esc(w.domain)}')">Edit</button>
-                            <button class="btn-danger" onclick="deleteWebsite('${w.websiteId}')">Delete</button>
-                        </td>
-                    </tr>`).join('')}
-                </tbody>
-            </table>`;
+            currentWebsites = await api(API);
+            renderTable();
         } catch (e) {
             toast('Failed to load: ' + e.message, 'error');
         }
