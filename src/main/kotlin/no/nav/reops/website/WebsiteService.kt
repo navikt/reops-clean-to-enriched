@@ -28,6 +28,11 @@ class WebsiteService(
     fun findById(websiteId: UUID): Website? =
         websiteRepository.findById(websiteId).map { it.toDto() }.orElse(null)
 
+    fun findAllFresh(): List<Website> = websiteRepository.findAll().map { it.toDto() }
+
+    fun findByIdFresh(websiteId: UUID): Website? =
+        websiteRepository.findById(websiteId).map { it.toDto() }.orElse(null)
+
     fun create(websiteId: UUID? = null, name: String, domain: String): Website {
         val entity = WebsiteEntity(
             websiteId = websiteId ?: UUID.randomUUID(),

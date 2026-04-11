@@ -138,6 +138,39 @@ class WebsiteServiceTest {
     }
 
     @Test
+    fun `findAllFresh returns all websites directly from repository`() {
+        val entities = listOf(
+            WebsiteEntity(UUID.randomUUID(), "Site 1", "site1.no", Instant.now()),
+            WebsiteEntity(UUID.randomUUID(), "Site 2", "site2.no", Instant.now())
+        )
+        whenever(websiteRepository.findAll()).thenReturn(entities)
+
+        val result = service.findAllFresh()
+        assertThat(result).hasSize(2)
+        assertThat(result.map { it.name }).containsExactly("Site 1", "Site 2")
+    }
+
+    @Test
+    fun `findByIdFresh returns website directly from repository`() {
+        val websiteId = UUID.randomUUID()
+        val entity = WebsiteEntity(websiteId, "Test", "test.no", Instant.now())
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity))
+
+        val result = service.findByIdFresh(websiteId)
+        assertThat(result).isNotNull
+        assertThat(result!!.websiteId).isEqualTo(websiteId)
+    }
+
+    @Test
+    fun `findByIdFresh returns null when not found`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.empty())
+
+        val result = service.findByIdFresh(websiteId)
+        assertThat(result).isNull()
+    }
+
+    @Test
     fun `isAllowed returns true when website exists`() {
         val websiteId = UUID.randomUUID()
         whenever(websiteRepository.existsById(websiteId)).thenReturn(true)
