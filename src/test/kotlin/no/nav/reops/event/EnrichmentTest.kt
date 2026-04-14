@@ -4,6 +4,7 @@ import no.nav.reops.useragent.UserAgentInfo
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.node.JsonNodeFactory
+import java.time.Instant
 import java.util.UUID
 
 class EnrichmentTest {
@@ -51,12 +52,72 @@ class EnrichmentTest {
     }
 
     @Test
-    fun `eventId and visitId are generated UUIDs`() {
+    fun `eventId and visitId are generated and distinct`() {
         val event = sampleEvent()
         val enriched = event.toEnrichedEvent()
         assertThat(enriched.websiteEvent.eventId).isNotNull()
         assertThat(enriched.websiteEvent.visitId).isNotNull()
-        assertThat(enriched.websiteEvent.eventId).isNotEqualTo(enriched.websiteEvent.visitId)
+        assertThat(enriched.websiteEvent.eventId.toString()).isNotEqualTo(enriched.websiteEvent.visitId)
+    }
+
+    @Test
+    fun `visitId is deterministic for the same session within the same hour`() {
+        val event = sampleEvent()
+        val now = Instant.parse("2026-04-14T10:30:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        assertThat(e1.websiteEvent.visitId).isEqualTo(e2.websiteEvent.visitId)
+    }
+
+    @Test
+    fun `visitId changes when the hour changes`() {
+        val event = sampleEvent()
+        val hour1 = Instant.parse("2026-04-14T10:30:00Z")
+        val hour2 = Instant.parse("2026-04-14T11:05:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = hour1)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = hour2)
+        assertThat(e1.websiteEvent.visitId).isNotEqualTo(e2.websiteEvent.visitId)
+    }
+
+    @Test
+    fun `visitId differs on different days at the same hour`() {
+        val event = sampleEvent()
+        val day1 = Instant.parse("2026-04-14T10:00:00Z")
+        val day2 = Instant.parse("2026-04-15T10:00:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = day1)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = day2)
+        assertThat(e1.websiteEvent.visitId).isNotEqualTo(e2.websiteEvent.visitId)
+    }
+
+    @Test
+    fun `visitId stays the same within the same hour regardless of minute`() {
+        val event = sampleEvent()
+        val earlyInHour = Instant.parse("2026-04-14T10:01:00Z")
+        val lateInHour = Instant.parse("2026-04-14T10:59:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = earlyInHour)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = lateInHour)
+        assertThat(e1.websiteEvent.visitId).isEqualTo(e2.websiteEvent.visitId)
+    }
+
+    @Test
+    fun `visitId differs for different sessions`() {
+        val event = sampleEvent()
+        val now = Instant.parse("2026-04-14T10:30:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        val e2 = event.toEnrichedEvent(ip = "1.1.1.1", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
+        assertThat(e1.websiteEvent.visitId).isNotEqualTo(e2.websiteEvent.visitId)
+    }
+
+    @Test
+    fun `visitId is derived from sessionId, not raw inputs`() {
+        val event = sampleEvent()
+        val now = Instant.parse("2026-04-14T10:30:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        // same session → same visitId
+        assertThat(e1.sessionId).isEqualTo(e2.sessionId)
+        assertThat(e1.websiteEvent.visitId).isEqualTo(e2.websiteEvent.visitId)
     }
 
     @Test

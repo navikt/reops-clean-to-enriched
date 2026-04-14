@@ -6,6 +6,7 @@ import tools.jackson.databind.node.JsonNodeType
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 
@@ -23,13 +24,14 @@ fun Event.toEnrichedEvent(
     userAgentInfo: UserAgentInfo = UserAgentInfo(),
     ip: String? = null,
     userAgent: String? = null,
-    salt: String? = null
+    salt: String? = null,
+    now: Instant = Instant.now()
 ): EnrichedEvent {
     val eventId = UUID.randomUUID()
-    val visitId = UUID.randomUUID()
+    val sessionId = generateSessionId(this.payload.website, this.payload.hostname, ip, userAgent, salt)
+    val visitId = generateVisitId(sessionId, now)
     val eventName = this.payload.name?.trim().takeUnless { it.isNullOrEmpty() }
     val eventType = if (eventName != null) 2 else 1
-    val sessionId = generateSessionId(this.payload.website, this.payload.hostname, ip, userAgent, salt)
 
     val isIdentify = this.type == "identify"
 
@@ -58,6 +60,25 @@ fun Event.toEnrichedEvent(
             sessionData = if (isIdentify) this.payload.data?.toSessionDataList(sessionId, this.payload.id) else null
         )
     )
+}
+
+/**
+ * Generates a deterministic visit ID by hashing the session ID together with the
+ * start-of-hour timestamp (UTC).
+ *
+ * A visit represents a single browsing session within an hour. The same user gets
+ * the same visitId throughout that hour, but a new visitId when the hour changes.
+ * This mirrors Umami's approach: `visitId = uuid(sessionId, visitSalt)` where
+ * `visitSalt = hash(startOfHour(createdAt))`.
+ */
+private fun generateVisitId(
+    sessionId: String, now: Instant = Instant.now()
+): String {
+    val startOfHour = now.truncatedTo(ChronoUnit.HOURS).toString()
+    val input = "$sessionId$startOfHour"
+    val digest = MessageDigest.getInstance("SHA-256")
+    val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
+    return hash.joinToString("") { "%02x".format(it) }
 }
 
 /**
