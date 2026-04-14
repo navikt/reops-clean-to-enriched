@@ -6,6 +6,8 @@ import tools.jackson.databind.node.JsonNodeType
 import java.net.URI
 import java.security.MessageDigest
 import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
@@ -28,7 +30,7 @@ fun Event.toEnrichedEvent(
     now: Instant = Instant.now()
 ): EnrichedEvent {
     val eventId = UUID.randomUUID()
-    val sessionId = generateSessionId(this.payload.website, this.payload.hostname, ip, userAgent, salt)
+    val sessionId = generateSessionId(this.payload.website, this.payload.hostname, ip, userAgent, salt, now)
     val visitId = generateVisitId(sessionId, now)
     val eventName = this.payload.name?.trim().takeUnless { it.isNullOrEmpty() }
     val eventType = if (eventName != null) 2 else 1
@@ -83,16 +85,18 @@ private fun generateVisitId(
 
 /**
  * Generates a deterministic session ID by hashing website ID, hostname, IP, User-Agent,
- * and a server-side secret salt.
+ * a server-side secret salt, and the current month (UTC).
  *
- * The same user (same IP + browser) always gets the same sessionId, making it
- * possible to track returning users across days for retention analysis.
+ * The same user (same IP + browser) gets the same sessionId throughout a calendar month.
+ * When the month rolls over, a new sessionId is generated — mirroring Umami's approach:
+ * `sessionSalt = hash(startOfMonth(createdAt))`.
  * The salt (APP_SECRET) prevents session IDs from being reconstructable by third parties.
  */
 private fun generateSessionId(
-    websiteId: UUID, hostname: String?, ip: String?, userAgent: String?, salt: String?
+    websiteId: UUID, hostname: String?, ip: String?, userAgent: String?, salt: String?, now: Instant = Instant.now()
 ): String {
-    val input = "$websiteId${hostname.orEmpty()}${ip.orEmpty()}${userAgent.orEmpty()}${salt.orEmpty()}"
+    val month = YearMonth.from(now.atOffset(ZoneOffset.UTC)).toString()
+    val input = "$websiteId${hostname.orEmpty()}${ip.orEmpty()}${userAgent.orEmpty()}${month}${salt.orEmpty()}"
     val digest = MessageDigest.getInstance("SHA-256")
     val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
     return hash.joinToString("") { "%02x".format(it) }

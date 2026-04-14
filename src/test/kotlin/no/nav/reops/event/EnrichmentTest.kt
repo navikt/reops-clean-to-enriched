@@ -12,43 +12,101 @@ class EnrichmentTest {
     private val websiteId = UUID.fromString("1dbfe4e9-bf8b-45d9-9305-928f22200bc0")
 
     @Test
-    fun `session ID is deterministic for the same inputs on the same day`() {
+    fun `session ID is deterministic for the same inputs in the same month`() {
         val event = sampleEvent(url = "/test", referrer = "https://google.com/search?q=nav")
-        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret")
-        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret")
-        assertThat(e1.sessionId).isEqualTo(e2.sessionId)
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
         assertThat(e1.sessionId).isEqualTo(e2.sessionId)
     }
 
     @Test
     fun `session ID differs for different IPs`() {
         val event = sampleEvent(url = "/test")
-        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0")
-        val e2 = event.toEnrichedEvent(ip = "1.1.1.1", userAgent = "Mozilla/5.0")
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", now = now)
+        val e2 = event.toEnrichedEvent(ip = "1.1.1.1", userAgent = "Mozilla/5.0", now = now)
         assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
     }
 
     @Test
     fun `session ID differs for different user agents`() {
         val event = sampleEvent(url = "/test")
-        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Chrome/120")
-        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Firefox/115")
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Chrome/120", now = now)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Firefox/115", now = now)
         assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
     }
 
     @Test
     fun `session ID differs for different salts`() {
         val event = sampleEvent(url = "/test")
-        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret-1")
-        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret-2")
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret-1", now = now)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret-2", now = now)
         assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
     }
 
     @Test
     fun `session ID is same on websiteEvent and session`() {
         val event = sampleEvent(url = "/test")
-        val enriched = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0")
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val enriched = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", now = now)
         assertThat(enriched.sessionId).isEqualTo(enriched.sessionId)
+    }
+
+    @Test
+    fun `session ID stays the same within the same month`() {
+        val event = sampleEvent(url = "/test")
+        val earlyInMonth = Instant.parse("2026-04-01T00:00:00Z")
+        val lateInMonth = Instant.parse("2026-04-30T23:59:59Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = earlyInMonth)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = lateInMonth)
+        assertThat(e1.sessionId).isEqualTo(e2.sessionId)
+    }
+
+    @Test
+    fun `session ID rotates when the month changes`() {
+        val event = sampleEvent(url = "/test")
+        val april = Instant.parse("2026-04-30T23:59:59Z")
+        val may = Instant.parse("2026-05-01T00:00:00Z")
+        val e1 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = april)
+        val e2 = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = may)
+        assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
+    }
+
+    @Test
+    fun `session ID differs for different websiteIds`() {
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val event1 = Event(
+            type = "event", payload = Event.Payload(
+                website = UUID.fromString("1dbfe4e9-bf8b-45d9-9305-928f22200bc0"),
+                hostname = "felgen.intern.nav.no", screen = "172x111", language = "en-US", url = "/test"
+            )
+        )
+        val event2 = Event(
+            type = "event", payload = Event.Payload(
+                website = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+                hostname = "felgen.intern.nav.no", screen = "172x111", language = "en-US", url = "/test"
+            )
+        )
+        val e1 = event1.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        val e2 = event2.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
+    }
+
+    @Test
+    fun `session ID differs for different hostnames`() {
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val event1 = sampleEvent(url = "/test")
+        val event2 = Event(
+            type = "event", payload = Event.Payload(
+                website = websiteId, hostname = "other.nav.no", screen = "172x111", language = "en-US", url = "/test"
+            )
+        )
+        val e1 = event1.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        val e2 = event2.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        assertThat(e1.sessionId).isNotEqualTo(e2.sessionId)
     }
 
     @Test
