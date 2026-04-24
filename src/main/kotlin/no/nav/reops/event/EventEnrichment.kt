@@ -4,7 +4,6 @@ import no.nav.reops.useragent.UserAgentInfo
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.node.JsonNodeType
 import java.net.URI
-import java.security.MessageDigest
 import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneOffset
@@ -74,13 +73,11 @@ fun Event.toEnrichedEvent(
  * `visitSalt = hash(startOfHour(createdAt))`.
  */
 private fun generateVisitId(
-    sessionId: String, now: Instant = Instant.now()
-): String {
+    sessionId: UUID, now: Instant = Instant.now()
+): UUID {
     val startOfHour = now.truncatedTo(ChronoUnit.HOURS).toString()
     val input = "$sessionId$startOfHour"
-    val digest = MessageDigest.getInstance("SHA-256")
-    val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
-    return hash.joinToString("") { "%02x".format(it) }
+    return UUID.nameUUIDFromBytes(input.toByteArray(Charsets.UTF_8))
 }
 
 /**
@@ -94,12 +91,10 @@ private fun generateVisitId(
  */
 private fun generateSessionId(
     websiteId: UUID, hostname: String?, ip: String?, userAgent: String?, salt: String?, now: Instant = Instant.now()
-): String {
+): UUID {
     val month = YearMonth.from(now.atOffset(ZoneOffset.UTC)).toString()
     val input = "$websiteId${hostname.orEmpty()}${ip.orEmpty()}${userAgent.orEmpty()}${month}${salt.orEmpty()}"
-    val digest = MessageDigest.getInstance("SHA-256")
-    val hash = digest.digest(input.toByteArray(Charsets.UTF_8))
-    return hash.joinToString("") { "%02x".format(it) }
+    return UUID.nameUUIDFromBytes(input.toByteArray(Charsets.UTF_8))
 }
 
 /**
@@ -207,7 +202,7 @@ private fun JsonNode.toEventDataList(): List<EventDataEntry>? {
  *  - data_type 2 = number
  *  - data_type 4 = date (not inferred here; stored as string)
  */
-private fun JsonNode.toSessionDataList(sessionId: String, distinctId: String?): List<SessionDataEntry>? {
+private fun JsonNode.toSessionDataList(sessionId: UUID, distinctId: String?): List<SessionDataEntry>? {
     if (!this.isObject) return null
     val result = mutableListOf<SessionDataEntry>()
     for ((key, value) in this.properties()) {

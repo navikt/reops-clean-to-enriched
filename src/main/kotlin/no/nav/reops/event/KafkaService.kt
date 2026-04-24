@@ -3,6 +3,7 @@ package no.nav.reops.event
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import no.nav.reops.geo.GeoIpService
+import no.nav.reops.session.SessionService
 import no.nav.reops.useragent.UserAgentService
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
@@ -26,6 +27,7 @@ class KafkaService(
     private val geoIpService: GeoIpService,
     private val userAgentService: UserAgentService,
     private val websiteService: no.nav.reops.website.WebsiteService,
+    private val sessionService: SessionService,
     @Value("\${spring.kafka.output-topic}") private val outputTopic: String,
     @Value("\${app.secret:}") private val appSecret: String,
     meterRegistry: MeterRegistry
@@ -100,7 +102,13 @@ class KafkaService(
                 salt = appSecret
             )
 
-            enrichedEventKafkaTemplate.send(outputTopic, key, enrichedEvent).get()
+            val isNewSession = enrichedEvent.sessionId?.let { sid ->
+                sessionService.checkAndRegister(sid, enrichedEvent.websiteId, enrichedEvent.createdAt)
+            } ?: true
+
+            val finalEvent = enrichedEvent.copy(isNewSession = isNewSession)
+
+            enrichedEventKafkaTemplate.send(outputTopic, key, finalEvent).get()
 
             LOG.info(
                 "Forwarded enriched event to topic={} key={} website={}",

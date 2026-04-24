@@ -12,6 +12,22 @@ class EnrichmentTest {
     private val websiteId = UUID.fromString("1dbfe4e9-bf8b-45d9-9305-928f22200bc0")
 
     @Test
+    fun `session ID is a UUID`() {
+        val event = sampleEvent(url = "/test")
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val enriched = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        assertThat(enriched.sessionId).isNotNull().isInstanceOf(UUID::class.java)
+    }
+
+    @Test
+    fun `visit ID is a UUID`() {
+        val event = sampleEvent(url = "/test")
+        val now = Instant.parse("2026-04-14T10:00:00Z")
+        val enriched = event.toEnrichedEvent(ip = "8.8.8.8", userAgent = "Mozilla/5.0", salt = "secret", now = now)
+        assertThat(enriched.websiteEvent.visitId).isNotNull().isInstanceOf(UUID::class.java)
+    }
+
+    @Test
     fun `session ID is deterministic for the same inputs in the same month`() {
         val event = sampleEvent(url = "/test", referrer = "https://google.com/search?q=nav")
         val now = Instant.parse("2026-04-14T10:00:00Z")
@@ -115,7 +131,7 @@ class EnrichmentTest {
         val enriched = event.toEnrichedEvent()
         assertThat(enriched.websiteEvent.eventId).isNotNull()
         assertThat(enriched.websiteEvent.visitId).isNotNull()
-        assertThat(enriched.websiteEvent.eventId.toString()).isNotEqualTo(enriched.websiteEvent.visitId)
+        assertThat(enriched.websiteEvent.eventId).isNotEqualTo(enriched.websiteEvent.visitId)
     }
 
     @Test

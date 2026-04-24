@@ -14,7 +14,7 @@ class CacheConfiguration {
 
     @Bean
     fun cacheManager(): CacheManager =
-        CaffeineCacheManager("websites", "website", "websiteAllowed").apply {
+        CaffeineCacheManager("websites", "website", "websiteAllowed", "sessions").apply {
             setCaffeine(Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(5)))
         }
 }

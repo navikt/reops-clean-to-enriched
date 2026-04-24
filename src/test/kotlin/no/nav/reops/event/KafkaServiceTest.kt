@@ -2,6 +2,7 @@ package no.nav.reops.event
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import no.nav.reops.geo.GeoIpService
+import no.nav.reops.session.SessionService
 import no.nav.reops.useragent.UserAgentInfo
 import no.nav.reops.useragent.UserAgentService
 import no.nav.reops.website.WebsiteService
@@ -24,6 +25,7 @@ class KafkaServiceTest {
     private lateinit var geoIpService: GeoIpService
     private lateinit var userAgentService: UserAgentService
     private lateinit var websiteService: WebsiteService
+    private lateinit var sessionService: SessionService
     private lateinit var meterRegistry: SimpleMeterRegistry
     private lateinit var kafkaService: KafkaService
 
@@ -35,11 +37,13 @@ class KafkaServiceTest {
         geoIpService = mock()
         userAgentService = mock()
         websiteService = mock()
+        sessionService = mock()
         meterRegistry = SimpleMeterRegistry()
-        kafkaService = KafkaService(enrichedEventKafkaTemplate, geoIpService, userAgentService, websiteService, "output-topic", "test-secret", meterRegistry)
+        kafkaService = KafkaService(enrichedEventKafkaTemplate, geoIpService, userAgentService, websiteService, sessionService, "output-topic", "test-secret", meterRegistry)
 
         whenever(userAgentService.parse(anyOrNull(), anyOrNull())).thenReturn(UserAgentInfo())
         whenever(websiteService.isAllowed(any())).thenReturn(true)
+        whenever(sessionService.checkAndRegister(any(), any(), any())).thenReturn(true)
     }
 
     @Test
