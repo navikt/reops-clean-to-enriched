@@ -1,12 +1,12 @@
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 
 plugins {
-	id("org.springframework.boot") version "4.0.5"
+	id("org.springframework.boot") version "4.0.6"
 	id("io.spring.dependency-management") version "1.1.7"
-	id("org.graalvm.buildtools.native") version "1.0.0"
-	kotlin("jvm") version "2.3.20"
-	kotlin("plugin.spring") version "2.3.20"
-	kotlin("plugin.jpa") version "2.3.20"
+	id("org.graalvm.buildtools.native") version "1.1.0"
+	kotlin("jvm") version "2.3.21"
+	kotlin("plugin.spring") version "2.3.21"
+	kotlin("plugin.jpa") version "2.3.21"
 }
 
 group = "no.nav.reops"
