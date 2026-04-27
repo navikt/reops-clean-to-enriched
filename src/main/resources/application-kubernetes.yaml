@@ -4,6 +4,8 @@ spring:
     topic: team-researchops.analytics-clean
     output-topic: team-researchops.analytics-enriched
     website-topic: team-researchops.analytics-website
+    listener:
+      auth-exception-retry-interval: 10s
     properties:
       security.protocol: SSL
       ssl.endpoint.identification.algorithm: ""
