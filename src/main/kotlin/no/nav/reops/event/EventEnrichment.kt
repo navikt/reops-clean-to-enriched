@@ -187,7 +187,7 @@ private fun JsonNode.toEventDataList(): List<EventDataEntry>? {
                 eventDataId = UUID.randomUUID(),
                 dataKey = key,
                 dataType = 1,
-                stringValue = value.asString(),
+                stringValue = if (value.isValueNode) value.asString() else value.toString(),
             )
         }
         result.add(entry)
@@ -230,7 +230,7 @@ private fun JsonNode.toSessionDataList(sessionId: UUID, distinctId: String?): Li
                 sessionId = sessionId,
                 dataKey = key,
                 dataType = 1,
-                stringValue = value.asString(),
+                stringValue = if (value.isValueNode) value.asString() else value.toString(),
                 distinctId = distinctId,
             )
         }
