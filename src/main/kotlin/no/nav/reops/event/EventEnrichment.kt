@@ -26,18 +26,24 @@ fun Event.toEnrichedEvent(
     ip: String? = null,
     userAgent: String? = null,
     salt: String? = null,
-    now: Instant = Instant.now()
+    now: Instant = Instant.now(),
+    preComputedSessionId: UUID? = null,
+    preComputedVisitId: UUID? = null,
+    preComputedCreatedAt: Instant? = null
 ): EnrichedEvent {
     val eventId = UUID.randomUUID()
-    val sessionId = generateSessionId(this.payload.website, this.payload.hostname, ip, userAgent, salt, now)
-    val visitId = generateVisitId(sessionId, now)
+    val sessionId = preComputedSessionId
+        ?: generateSessionId(this.payload.website, this.payload.hostname, ip, userAgent, salt, now)
+    val visitId = preComputedVisitId
+        ?: generateVisitId(sessionId, now)
+    val createdAt = preComputedCreatedAt ?: now
     val eventName = this.payload.name?.trim().takeUnless { it.isNullOrEmpty() }
     val eventType = if (eventName != null) 2 else 1
 
     val isIdentify = this.type == "identify"
 
-    return EnrichedEvent( // todo: later change createdAt to be created in proxy
-        websiteId = this.payload.website, sessionId = sessionId, createdAt = Instant.now(), websiteEvent = WebsiteEvent(
+    return EnrichedEvent(
+        websiteId = this.payload.website, sessionId = sessionId, createdAt = createdAt, websiteEvent = WebsiteEvent(
             eventId = eventId,
             urlPath = extractPath(this.payload.url),
             urlQuery = extractQuery(this.payload.url),

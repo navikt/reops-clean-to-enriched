@@ -232,12 +232,67 @@ class KafkaServiceTest {
         key: String,
         value: Event,
         forwardedFor: String? = null,
-        userAgent: String? = null
+        userAgent: String? = null,
+        sessionId: UUID? = null,
+        visitId: UUID? = null,
+        createdAt: java.time.Instant? = null
     ): ConsumerRecord<String, Event> {
         val headers = RecordHeaders()
         forwardedFor?.let { headers.add(FORWARDED_FOR, it.toByteArray()) }
         userAgent?.let { headers.add(USER_AGENT, it.toByteArray()) }
+        sessionId?.let { headers.add(SESSION_ID_HEADER, it.toString().toByteArray()) }
+        visitId?.let { headers.add(VISIT_ID_HEADER, it.toString().toByteArray()) }
+        createdAt?.let { headers.add(CREATED_AT_HEADER, it.toString().toByteArray()) }
         return ConsumerRecord("topic", 0, 0L, 0L, TimestampType.CREATE_TIME, 0, 0, key, value, headers, Optional.empty())
+    }
+
+    @Test
+    fun `proxy-supplied sessionId visitId and createdAt are honoured over recomputed values`() {
+        val event = sampleEvent(name = null)
+        val key = "key"
+        val wireSessionId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        val wireVisitId = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val wireCreatedAt = java.time.Instant.parse("2026-05-08T10:00:00Z")
+        val record = consumerRecord(
+            key = key,
+            value = event,
+            sessionId = wireSessionId,
+            visitId = wireVisitId,
+            createdAt = wireCreatedAt
+        )
+
+        whenever(geoIpService.lookupCountry(any())).thenReturn(null)
+        whenever(enrichedEventKafkaTemplate.send(eq("output-topic"), eq(key), any())).thenReturn(
+            CompletableFuture.completedFuture(null)
+        )
+
+        kafkaService.eventListen(event = event, key = key, record = record)
+
+        verify(enrichedEventKafkaTemplate).send(eq("output-topic"), eq(key), check { enriched ->
+            assertThat(enriched.sessionId).isEqualTo(wireSessionId)
+            assertThat(enriched.websiteEvent.visitId).isEqualTo(wireVisitId)
+            assertThat(enriched.createdAt).isEqualTo(wireCreatedAt)
+        })
+    }
+
+    @Test
+    fun `missing proxy headers fall back to deterministic hashing path`() {
+        val event = sampleEvent(name = null)
+        val key = "key"
+        val record = consumerRecord(key = key, value = event, forwardedFor = "1.2.3.4", userAgent = "JUnit/5")
+
+        whenever(geoIpService.lookupCountry(any())).thenReturn(null)
+        whenever(enrichedEventKafkaTemplate.send(eq("output-topic"), eq(key), any())).thenReturn(
+            CompletableFuture.completedFuture(null)
+        )
+
+        kafkaService.eventListen(event = event, key = key, record = record)
+
+        verify(enrichedEventKafkaTemplate).send(eq("output-topic"), eq(key), check { enriched ->
+            assertThat(enriched.sessionId).isNotNull()
+            assertThat(enriched.websiteEvent.visitId).isNotNull()
+            assertThat(enriched.createdAt).isNotNull()
+        })
     }
 
     private fun sampleEvent(name: String?, data: tools.jackson.databind.JsonNode? = null): Event = Event(

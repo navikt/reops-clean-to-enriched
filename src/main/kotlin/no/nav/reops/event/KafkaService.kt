@@ -20,6 +20,9 @@ import org.springframework.stereotype.Service
 
 const val FORWARDED_FOR = "x-forwarded-for"
 const val USER_AGENT = "user-agent"
+const val SESSION_ID_HEADER = "x-reops-session-id"
+const val VISIT_ID_HEADER = "x-reops-visit-id"
+const val CREATED_AT_HEADER = "x-reops-created-at"
 
 @Service
 class KafkaService(
@@ -74,6 +77,12 @@ class KafkaService(
 
             val forwardedFor = record.headers().lastHeader(FORWARDED_FOR)?.value()?.let { String(it) }
             val userAgent = record.headers().lastHeader(USER_AGENT)?.value()?.let { String(it) }
+            val sessionIdHeader = record.headers().lastHeader(SESSION_ID_HEADER)?.value()
+                ?.let { runCatching { java.util.UUID.fromString(String(it)) }.getOrNull() }
+            val visitIdHeader = record.headers().lastHeader(VISIT_ID_HEADER)?.value()
+                ?.let { runCatching { java.util.UUID.fromString(String(it)) }.getOrNull() }
+            val createdAtHeader = record.headers().lastHeader(CREATED_AT_HEADER)?.value()
+                ?.let { runCatching { java.time.Instant.parse(String(it)) }.getOrNull() }
 
             LOG.info(
                 "Received event with key={} website={} offset={} partition={}",
@@ -99,7 +108,10 @@ class KafkaService(
                 userAgentInfo = userAgentInfo,
                 ip = forwardedFor?.split(",")?.firstOrNull()?.trim(),
                 userAgent = userAgent,
-                salt = appSecret
+                salt = appSecret,
+                preComputedSessionId = sessionIdHeader,
+                preComputedVisitId = visitIdHeader,
+                preComputedCreatedAt = createdAtHeader
             )
 
             val isNewSession = enrichedEvent.sessionId?.let { sid ->
