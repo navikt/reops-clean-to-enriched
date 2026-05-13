@@ -54,5 +54,7 @@ spec:
         -XX:MaxRAMPercentage=70
         -XX:InitialRAMPercentage=50
         -XX:+ExitOnOutOfMemoryError
+  strategy:
+    type: Recreate
   envFrom:
     - secret: reops-event-proxy
