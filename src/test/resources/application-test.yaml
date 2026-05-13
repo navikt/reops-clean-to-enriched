@@ -1,6 +1,6 @@
 spring:
   application:
-    name: reops-umami-test
+    name: reops-clean-to-enriched-test
   kafka:
     topic: test-topic
     output-topic: test-output-topic

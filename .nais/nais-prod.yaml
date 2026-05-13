@@ -1,7 +1,7 @@
 apiVersion: nais.io/v1alpha1
 kind: Application
 metadata:
-  name: reops-umami
+  name: reops-clean-to-enriched
   namespace: team-researchops
   labels:
     team: team-researchops
@@ -20,7 +20,7 @@ spec:
     scalingStrategy:
        kafka:
         topic: team-researchops.analytics-clean
-        consumerGroup: reops-umami
+        consumerGroup: reops-clean-to-enriched
         threshold: 100
   prometheus:
     enabled: true
@@ -38,13 +38,13 @@ spec:
       - type: POSTGRES_18
         tier: db-f1-micro
         databases:
-          - name: reops-umami
+          - name: reops-clean-to-enriched
   accessPolicy:
     outbound:
       external:
         - host: nav-prod-kafka-nav-prod.aivencloud.com
   ingresses:
-    - "https://reops-umami.ansatt.nav.no"
+    - "https://reops-clean-to-enriched.ansatt.nav.no"
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: kubernetes

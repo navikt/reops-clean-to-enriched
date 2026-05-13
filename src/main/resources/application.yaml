@@ -1,6 +1,6 @@
 spring:
   application:
-    name: reops-umami
+    name: reops-clean-to-enriched
   datasource:
     driver-class-name: org.postgresql.Driver
     hikari:
@@ -30,7 +30,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
     consumer:
-      group-id: reops-umami
+      group-id: reops-clean-to-enriched
       auto-offset-reset: earliest
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer

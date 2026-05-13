@@ -1,4 +1,4 @@
-# reops-umami
+# reops-clean-to-enriched
 Kafka-konsument som beriker webanalyse-hendelser — bot-filtrering, GeoIP-landsoppslag, User-Agent-parsing (nettleser/OS/enhet), informasjonskapselefri sesjonsfingeravtrykk, URL-normalisering, språknormalisering og hendelsesdatatyping.
 
 ## Kafka-topics

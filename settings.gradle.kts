@@ -1,1 +1,1 @@
-rootProject.name = "reops-umami"
+rootProject.name = "reops-clean-to-enriched"

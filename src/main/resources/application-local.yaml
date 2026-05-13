@@ -9,9 +9,9 @@ spring:
     retry:
       backoff-delay: 1000
   datasource:
-    url: jdbc:postgresql://localhost:5432/reops-umami
-    username: reops-umami
-    password: reops-umami
+    url: jdbc:postgresql://localhost:5432/reops-clean-to-enriched
+    username: reops-clean-to-enriched
+    password: reops-clean-to-enriched
 server:
   port: 8088
 
