@@ -17,11 +17,11 @@ spec:
   replicas:
     min: 2
     max: 10
-#    scalingStrategy:
-#      kafka:
-#        topic: team-researchops.analytics-clean
-#        consumerGroup: reops-umami
-#        threshold: 100
+    scalingStrategy:
+       kafka:
+        topic: team-researchops.analytics-clean
+        consumerGroup: reops-umami
+        threshold: 100
   prometheus:
     enabled: true
     path: /internal/prometheus
@@ -43,6 +43,8 @@ spec:
     outbound:
       external:
         - host: nav-prod-kafka-nav-prod.aivencloud.com
+  ingresses:
+    - "https://reops-umami.ansatt.nav.no"
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: kubernetes
