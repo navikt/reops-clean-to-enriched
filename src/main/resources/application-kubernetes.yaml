@@ -19,7 +19,7 @@ spring:
       reconnect.backoff.ms: 5000
       reconnect.backoff.max.ms: 10000
   datasource:
-    url: ${NAIS_DATABASE_REOPS_UMAMI_REOPS_UMAMI_JDBC_URL}
+    url: ${NAIS_DATABASE_REOPS_CLEAN_TO_ENRICHED_REOPS_CLEAN_TO_ENRICHED_JDBC_URL}
 
 logging:
   structured:
