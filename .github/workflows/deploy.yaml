@@ -47,6 +47,12 @@ jobs:
           project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
           dockerfile: Dockerfile
           build_args: CI=true
+      - name: Show image and SHA for later prod deploy
+        run: |
+          echo "========================================"
+          echo "image=${{ steps.docker-build-push.outputs.image }}"
+          echo "version=${{ github.sha }}"
+          echo "========================================"
     outputs:
       image: ${{ steps.docker-build-push.outputs.image }}
 
@@ -64,20 +70,3 @@ jobs:
           CLUSTER: dev-gcp
           RESOURCE: .nais/nais-dev.yaml
           VAR: image=${{ needs.docker.outputs.image }}
-
-
-#  deploy-prod:
-#    needs: [deploy-dev]
-#    runs-on: ubuntu-latest
-#    environment: prod
-#    permissions:
-#      contents: read
-#      id-token: write
-#    steps:
-#      - uses: actions/checkout@v6
-#      - name: Deploy to prod
-#        uses: nais/deploy/actions/deploy@v2
-#        env:
-#          CLUSTER: prod-gcp
-#          RESOURCE: .nais/nais-prod.yaml
-#          VAR: image=${{ needs.docker.outputs.image }}
