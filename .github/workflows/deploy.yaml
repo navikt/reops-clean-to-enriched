@@ -47,11 +47,10 @@ jobs:
           project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
           dockerfile: Dockerfile
           build_args: CI=true
-      - name: Show image and SHA for later prod deploy
+      - name: Show image for later prod deploy
         run: |
           echo "========================================"
           echo "image=${{ steps.docker-build-push.outputs.image }}"
-          echo "version=${{ github.sha }}"
           echo "========================================"
     outputs:
       image: ${{ steps.docker-build-push.outputs.image }}

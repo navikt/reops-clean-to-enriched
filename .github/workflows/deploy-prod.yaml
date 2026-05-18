@@ -1,15 +1,11 @@
 name: "Deploy Prod (Manual)"
-run-name: "Deploy Prod (Manual) — ${{ github.event.inputs.version }}"
+run-name: "Deploy Prod (Manual)"
 
 on:
   workflow_dispatch:
     inputs:
       image:
         description: "Image to deploy (copy from dev deploy run output)"
-        required: true
-        type: string
-      version:
-        description: "SHA to deploy (copy from dev deploy run output)"
         required: true
         type: string
 
@@ -30,4 +26,4 @@ jobs:
         env:
           CLUSTER: prod-gcp
           RESOURCE: .nais/nais-prod.yaml
-          VAR: image=${{ github.event.inputs.image }},version=${{ github.event.inputs.version }}
+          VAR: image=${{ github.event.inputs.image }}
