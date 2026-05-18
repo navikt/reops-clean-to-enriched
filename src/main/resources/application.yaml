@@ -25,7 +25,7 @@ spring:
     website-topic: website
     listener:
       ack-mode: record
-      concurrency: 5
+      concurrency: 6
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
