@@ -24,7 +24,7 @@ spring:
     bootstrap-servers: localhost:9094
     website-topic: website
     listener:
-      ack-mode: record
+      ack-mode: batch
       concurrency: 3
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer

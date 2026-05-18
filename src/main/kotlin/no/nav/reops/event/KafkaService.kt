@@ -120,14 +120,22 @@ class KafkaService(
 
             val finalEvent = enrichedEvent.copy(isNewSession = isNewSession)
 
-            enrichedEventKafkaTemplate.send(outputTopic, key, finalEvent).get()
-
-            LOG.info(
-                "Forwarded enriched event to topic={} key={} website={}",
-                outputTopic, key, event.payload.website
-            )
-
-            kafkaEventsSuccess.increment()
+            enrichedEventKafkaTemplate.send(outputTopic, key, finalEvent)
+                .whenComplete { _, ex ->
+                    if (ex != null) {
+                        kafkaEventsFailure.increment()
+                        LOG.error(
+                            "Async produce failed topic={} key={} website={}",
+                            outputTopic, key, event.payload.website, ex
+                        )
+                    } else {
+                        kafkaEventsSuccess.increment()
+                        LOG.debug(
+                            "Forwarded enriched event to topic={} key={} website={}",
+                            outputTopic, key, event.payload.website
+                        )
+                    }
+                }
         } catch (ex: Exception) {
             kafkaEventsFailure.increment()
             LOG.error(
