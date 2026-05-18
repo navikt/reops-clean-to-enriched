@@ -15,8 +15,8 @@ spec:
     path: /internal/health
     initialDelay: 5
   replicas:
-    min: 2
-    max: 10
+    min: 4
+    max: 20
     scalingStrategy:
        kafka:
         topic: team-researchops.analytics-clean

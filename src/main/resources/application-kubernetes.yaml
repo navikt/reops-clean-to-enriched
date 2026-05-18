@@ -21,7 +21,7 @@ spring:
   datasource:
     url: ${NAIS_DATABASE_REOPS_CLEAN_TO_ENRICHED_REOPS_CLEAN_TO_ENRICHED_JDBC_URL}
     hikari:
-      maximum-pool-size: 3
+      maximum-pool-size: 4
 
 logging:
   structured:
