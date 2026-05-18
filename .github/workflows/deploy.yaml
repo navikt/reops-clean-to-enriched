@@ -1,5 +1,5 @@
-name: "Deploy umami"
-run-name: "Deploy umami"
+name: "Deploy"
+run-name: "Deploy"
 
 on:
   push:

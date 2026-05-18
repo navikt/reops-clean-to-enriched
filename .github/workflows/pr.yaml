@@ -1,5 +1,5 @@
-name: "PR - umami"
-run-name: "PR - umami"
+name: "PR"
+run-name: "PR"
 
 on:
   pull_request:
