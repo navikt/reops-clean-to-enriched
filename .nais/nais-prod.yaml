@@ -36,7 +36,7 @@ spec:
   gcp:
     sqlInstances:
       - type: POSTGRES_18
-        tier: db-custom-1-3840
+        tier: db-custom-2-5120
         databases:
           - name: reops-clean-to-enriched
   accessPolicy:
