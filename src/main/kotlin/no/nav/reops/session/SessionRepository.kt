@@ -5,6 +5,9 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import java.time.Instant
 import java.util.UUID
 
@@ -16,4 +19,8 @@ data class SessionEntity(
     @Column(name = "created_at") val createdAt: Instant = Instant.now()
 )
 
-interface SessionRepository : JpaRepository<SessionEntity, UUID>
+interface SessionRepository : JpaRepository<SessionEntity, UUID> {
+    @Modifying
+    @Query("DELETE FROM SessionEntity s WHERE s.createdAt < :before")
+    fun deleteOlderThan(@Param("before") before: Instant): Int
+}
