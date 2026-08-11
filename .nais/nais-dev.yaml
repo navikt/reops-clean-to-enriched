@@ -12,13 +12,13 @@ spec:
     path: /internal/health
     initialDelay: 90
     periodSeconds: 10
-    timeoutSeconds: 5
+    timeout: 5
     failureThreshold: 3
   readiness:
     path: /internal/health
     initialDelay: 20
     periodSeconds: 5
-    timeoutSeconds: 5
+    timeout: 5
     failureThreshold: 14
   replicas:
     min: 2
