@@ -31,6 +31,22 @@
     { "type": "tools.jackson.databind.exc.JsonNodeException" },
     { "type": "tools.jackson.databind.exc.ValueInstantiationException" },
     { "type": "tools.jackson.databind.exc.MissingInjectableValueExcepion" },
-    { "type": "tools.jackson.databind.exc.MissingInjectableValueException" }
+    { "type": "tools.jackson.databind.exc.MissingInjectableValueException" },
+
+    { "type": "java.io.IOException" },
+    { "type": "java.io.EOFException" },
+    { "type": "java.io.UncheckedIOException" },
+    { "type": "java.nio.charset.CharacterCodingException" },
+    { "type": "java.nio.charset.MalformedInputException" },
+    { "type": "java.lang.IllegalArgumentException" },
+    { "type": "java.lang.NumberFormatException" },
+    { "type": "java.lang.IllegalStateException" },
+    { "type": "java.lang.ClassCastException" },
+    { "type": "java.lang.NullPointerException" },
+    { "type": "java.lang.ReflectiveOperationException" },
+    { "type": "java.lang.ClassNotFoundException" },
+    { "type": "java.lang.IndexOutOfBoundsException" },
+    { "type": "java.lang.ArrayIndexOutOfBoundsException" },
+    { "type": "java.lang.StringIndexOutOfBoundsException" }
   ]
 }
