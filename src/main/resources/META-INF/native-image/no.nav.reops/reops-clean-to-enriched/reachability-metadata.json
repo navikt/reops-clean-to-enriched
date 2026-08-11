@@ -1,15 +1,20 @@
 {
-  "comment": "Manual additions on top of Spring AOT-generated hints. Spring's ErrorHandlingDeserializer Java-serializes the caught deserialization exception (via ObjectOutputStream) to pass it downstream as a Kafka record header. This is a runtime-only code path (only triggered by an actual malformed message), so Spring AOT's static analysis never traces it, and native-image fails with UnsupportedFeatureError (SerializationConstructorAccessor not found for java.lang.Throwable) the first time a poison-pill message is consumed in production. Registering the exception hierarchy for serialization here fixes it without needing a real bad message during the AOT build/tracing-agent run.",
+  "comment": "Manual additions on top of Spring AOT-generated hints. Spring's ErrorHandlingDeserializer Java-serializes the caught deserialization exception (via ObjectOutputStream) to pass it downstream as a Kafka record header. This is a runtime-only code path (only triggered by an actual malformed message), so Spring AOT's static analysis never traces it, and native-image fails with UnsupportedFeatureError (SerializationConstructorAccessor not found) the first time a poison-pill message is consumed in production. GraalVM requires EVERY class in the exception's superclass chain to be registered individually (not just the leaf and Throwable) -- walk the full chain with `javap` before adding entries here, or this keeps failing one superclass at a time. Confirmed chain for DeserializationException: DeserializationException -> KafkaException -> NestedRuntimeException -> RuntimeException -> Exception -> Throwable.",
   "serialization": [
     { "type": "java.lang.Throwable" },
     { "type": "java.lang.Exception" },
     { "type": "java.lang.RuntimeException" },
-    { "type": "org.apache.kafka.common.errors.SerializationException" },
+    { "type": "org.springframework.core.NestedRuntimeException" },
+    { "type": "org.springframework.kafka.KafkaException" },
     { "type": "org.springframework.kafka.support.serializer.DeserializationException" },
+    { "type": "org.apache.kafka.common.KafkaException" },
+    { "type": "org.apache.kafka.common.errors.SerializationException" },
     { "type": "tools.jackson.core.JacksonException" },
     { "type": "tools.jackson.core.exc.StreamReadException" },
+    { "type": "tools.jackson.databind.DatabindException" },
     { "type": "tools.jackson.databind.exc.MismatchedInputException" },
     { "type": "tools.jackson.databind.exc.InvalidFormatException" },
+    { "type": "tools.jackson.databind.exc.PropertyBindingException" },
     { "type": "tools.jackson.databind.exc.UnrecognizedPropertyException" }
   ]
 }
