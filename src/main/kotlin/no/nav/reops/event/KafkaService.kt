@@ -65,12 +65,14 @@ class KafkaService(
         @Header(KafkaHeaders.RECEIVED_KEY) key: String,
         record: ConsumerRecord<String, Event>
     ) {
+        val traceId = event.payload.id
+            ?: event.payload.data?.toString()?.take(200)
         try {
             if (!websiteService.isAllowed(event.payload.website)) {
                 kafkaEventsUnregistered.increment()
                 LOG.info(
-                    "Filtered event from unregistered websiteId={} key={} payloadId={}",
-                    event.payload.website, key, event.payload.id
+                    "Filtered event from unregistered websiteId={} key={} traceId={}",
+                    event.payload.website, key, traceId
                 )
                 return
             }
@@ -85,8 +87,8 @@ class KafkaService(
                 ?.let { runCatching { java.time.Instant.parse(String(it)) }.getOrNull() }
 
             LOG.info(
-                "Received event with key={} payloadId={} website={} offset={} partition={}",
-                key, event.payload.id, event.payload.website, record.offset(), record.partition()
+                "Received event with key={} traceId={} website={} offset={} partition={}",
+                key, traceId, event.payload.website, record.offset(), record.partition()
             )
 
             val country = geoIpService.lookupCountry(forwardedFor)
@@ -97,8 +99,8 @@ class KafkaService(
             if (userAgentInfo.isBot) {
                 kafkaEventsBot.increment()
                 LOG.info(
-                    "Filtered bot event key={} payloadId={} website={} ua={}",
-                    key, event.payload.id, event.payload.website, userAgent
+                    "Filtered bot event key={} traceId={} website={} ua={}",
+                    key, traceId, event.payload.website, userAgent
                 )
                 return
             }
@@ -122,8 +124,8 @@ class KafkaService(
             val enrichedEventId = finalEvent.websiteEvent.eventId
 
             LOG.info(
-                "Submitting enriched event for produce key={} payloadId={} eventId={} website={}",
-                key, event.payload.id, enrichedEventId, event.payload.website
+                "Submitting enriched event for produce key={} traceId={} eventId={} website={}",
+                key, traceId, enrichedEventId, event.payload.website
             )
 
             enrichedEventKafkaTemplate.send(outputTopic, key, finalEvent)
@@ -131,14 +133,14 @@ class KafkaService(
                     if (ex != null) {
                         kafkaEventsFailure.increment()
                         LOG.error(
-                            "Async produce failed topic={} key={} payloadId={} eventId={} website={}",
-                            outputTopic, key, event.payload.id, enrichedEventId, event.payload.website, ex
+                            "Async produce failed topic={} key={} traceId={} eventId={} website={}",
+                            outputTopic, key, traceId, enrichedEventId, event.payload.website, ex
                         )
                     } else {
                         kafkaEventsSuccess.increment()
                         LOG.info(
-                            "Forwarded enriched event to topic={} key={} payloadId={} eventId={} website={}",
-                            outputTopic, key, event.payload.id, enrichedEventId, event.payload.website
+                            "Forwarded enriched event to topic={} key={} traceId={} eventId={} website={}",
+                            outputTopic, key, traceId, enrichedEventId, event.payload.website
                         )
                     }
                 }
@@ -152,9 +154,9 @@ class KafkaService(
                         .getOrNull()
                 }
             LOG.error(
-                "Failed processing kafka event key={} payloadId={} topic={} offset={} partition={} retryAttempts={}",
+                "Failed processing kafka event key={} traceId={} topic={} offset={} partition={} retryAttempts={}",
                 key,
-                event.payload.id,
+                traceId,
                 record.topic(),
                 record.offset(),
                 record.partition(),
