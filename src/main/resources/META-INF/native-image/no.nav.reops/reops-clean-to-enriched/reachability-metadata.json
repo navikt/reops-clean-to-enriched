@@ -1,0 +1,15 @@
+{
+  "comment": "Manual additions on top of Spring AOT-generated hints. Spring's ErrorHandlingDeserializer Java-serializes the caught deserialization exception (via ObjectOutputStream) to pass it downstream as a Kafka record header. This is a runtime-only code path (only triggered by an actual malformed message), so Spring AOT's static analysis never traces it, and native-image fails with UnsupportedFeatureError (SerializationConstructorAccessor not found for java.lang.Throwable) the first time a poison-pill message is consumed in production. Registering the exception hierarchy for serialization here fixes it without needing a real bad message during the AOT build/tracing-agent run.",
+  "serialization": [
+    { "type": "java.lang.Throwable" },
+    { "type": "java.lang.Exception" },
+    { "type": "java.lang.RuntimeException" },
+    { "type": "org.apache.kafka.common.errors.SerializationException" },
+    { "type": "org.springframework.kafka.support.serializer.DeserializationException" },
+    { "type": "tools.jackson.core.JacksonException" },
+    { "type": "tools.jackson.core.exc.StreamReadException" },
+    { "type": "tools.jackson.databind.exc.MismatchedInputException" },
+    { "type": "tools.jackson.databind.exc.InvalidFormatException" },
+    { "type": "tools.jackson.databind.exc.UnrecognizedPropertyException" }
+  ]
+}
