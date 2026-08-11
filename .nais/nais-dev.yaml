@@ -10,14 +10,16 @@ spec:
   port: 8080
   liveness:
     path: /internal/health
-    initialDelay: 60
+    initialDelay: 90
     periodSeconds: 10
-    failureThreshold: 5
+    timeoutSeconds: 5
+    failureThreshold: 3
   readiness:
     path: /internal/health
-    initialDelay: 40
+    initialDelay: 20
     periodSeconds: 5
-    failureThreshold: 10
+    timeoutSeconds: 5
+    failureThreshold: 14
   replicas:
     min: 2
     max: 4
