@@ -2,6 +2,7 @@ package no.nav.reops.session
 
 import org.slf4j.LoggerFactory
 import org.springframework.cache.CacheManager
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -22,7 +23,19 @@ class SessionService(
             return false
         }
 
-        val inserted = sessionRepository.insertIfAbsent(sessionId, websiteId, createdAt) == 1
+        // Concurrent consumers can race on the same sessionId (it's derived
+        // deterministically from website+IP+UA+month, not the Kafka key, so two
+        // events for the same visit can land on different partitions/threads).
+        // Rather than check-then-insert (which still races), we just try to insert
+        // and let the session_id primary key catch the loser: the unique constraint
+        // is what's actually atomic here, not this code. This is portable SQL (works
+        // on H2 in tests and Postgres in prod), unlike a native `ON CONFLICT` query.
+        val inserted = try {
+            sessionRepository.save(SessionEntity(sessionId = sessionId, websiteId = websiteId, createdAt = createdAt))
+            true
+        } catch (ex: DataIntegrityViolationException) {
+            false
+        }
         sessionsCache.put(sessionId, true)
 
         if (inserted) {
