@@ -1,9 +1,6 @@
-import org.gradle.api.artifacts.component.ModuleComponentIdentifier
-
 plugins {
 	id("org.springframework.boot") version "4.0.5"
 	id("io.spring.dependency-management") version "1.1.7"
-	id("org.graalvm.buildtools.native") version "1.0.0"
 	kotlin("jvm") version "2.3.20"
 	kotlin("plugin.spring") version "2.3.20"
 	kotlin("plugin.jpa") version "2.3.20"
@@ -24,13 +21,6 @@ repositories {
 	mavenCentral()
 }
 
-configurations.configureEach {
-	exclude(group = "org.lz4", module = "lz4-java")
-	resolutionStrategy.capabilitiesResolution.withCapability("org.lz4", "lz4-java") {
-		select(candidates.first { it.id.let { id -> id is ModuleComponentIdentifier && id.group == "at.yawk.lz4" } })
-	}
-}
-
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
@@ -47,7 +37,6 @@ dependencies {
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlin:kotlin-stdlib")
-	implementation("at.yawk.lz4:lz4-java:1.11.0")
 	implementation("io.micrometer:micrometer-registry-prometheus")
 	implementation("com.maxmind.geoip2:geoip2:5.0.2")
 
@@ -77,31 +66,4 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
 
 tasks.named<Jar>("bootJar") {
 	archiveFileName.set("app.jar")
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
-
-tasks.named<ProcessResources>("processResources") {
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
-
-graalvmNative {
-	binaries {
-		named("main") {
-			imageName.set("app")
-			mainClass.set("no.nav.reops.UmamiApplicationKt")
-		}
-	}
-	binaries.all {
-		buildArgs.addAll(
-			"-H:+ReportExceptionStackTraces",
-			"--exclude-config", ".*/java\\.desktop/.*",
-			"-H:-IncludeMethodData",
-			"-Os",
-		)
-		if (System.getenv("CI").toBoolean()) {
-			buildArgs.add("-J-Xmx32g")
-		} else {
-			buildArgs.add("-J-Xmx6g")
-		}
-	}
 }
