@@ -69,8 +69,8 @@ class KafkaService(
             if (!websiteService.isAllowed(event.payload.website)) {
                 kafkaEventsUnregistered.increment()
                 LOG.info(
-                    "Filtered event from unregistered websiteId={} key={}",
-                    event.payload.website, key
+                    "Filtered event from unregistered websiteId={} key={} payloadId={}",
+                    event.payload.website, key, event.payload.id
                 )
                 return
             }
@@ -85,8 +85,8 @@ class KafkaService(
                 ?.let { runCatching { java.time.Instant.parse(String(it)) }.getOrNull() }
 
             LOG.info(
-                "Received event with key={} website={} offset={} partition={}",
-                key, event.payload.website, record.offset(), record.partition()
+                "Received event with key={} payloadId={} website={} offset={} partition={}",
+                key, event.payload.id, event.payload.website, record.offset(), record.partition()
             )
 
             val country = geoIpService.lookupCountry(forwardedFor)
@@ -96,9 +96,9 @@ class KafkaService(
 
             if (userAgentInfo.isBot) {
                 kafkaEventsBot.increment()
-                LOG.debug(
-                    "Filtered bot event key={} website={} ua={}",
-                    key, event.payload.website, userAgent
+                LOG.info(
+                    "Filtered bot event key={} payloadId={} website={} ua={}",
+                    key, event.payload.id, event.payload.website, userAgent
                 )
                 return
             }
@@ -119,20 +119,26 @@ class KafkaService(
             } ?: true
 
             val finalEvent = enrichedEvent.copy(isNewSession = isNewSession)
+            val enrichedEventId = finalEvent.websiteEvent.eventId
+
+            LOG.info(
+                "Submitting enriched event for produce key={} payloadId={} eventId={} website={}",
+                key, event.payload.id, enrichedEventId, event.payload.website
+            )
 
             enrichedEventKafkaTemplate.send(outputTopic, key, finalEvent)
                 .whenComplete { _, ex ->
                     if (ex != null) {
                         kafkaEventsFailure.increment()
                         LOG.error(
-                            "Async produce failed topic={} key={} website={}",
-                            outputTopic, key, event.payload.website, ex
+                            "Async produce failed topic={} key={} payloadId={} eventId={} website={}",
+                            outputTopic, key, event.payload.id, enrichedEventId, event.payload.website, ex
                         )
                     } else {
                         kafkaEventsSuccess.increment()
-                        LOG.debug(
-                            "Forwarded enriched event to topic={} key={} website={}",
-                            outputTopic, key, event.payload.website
+                        LOG.info(
+                            "Forwarded enriched event to topic={} key={} payloadId={} eventId={} website={}",
+                            outputTopic, key, event.payload.id, enrichedEventId, event.payload.website
                         )
                     }
                 }
@@ -158,6 +164,13 @@ class KafkaService(
             "Message exhausted all retries and sent to DLT: key={} website={} offset={} partition={} topic={}",
             key, website, record.offset(), record.partition(), record.topic()
         )
+    }
+
+    @jakarta.annotation.PreDestroy
+    fun flushOnShutdown() {
+        LOG.info("Shutting down: flushing enrichedEventKafkaTemplate to avoid losing in-flight produces")
+        runCatching { enrichedEventKafkaTemplate.flush() }
+            .onFailure { LOG.error("Flush on shutdown failed, in-flight events may be lost", it) }
     }
 
     private companion object {
