@@ -22,15 +22,13 @@ class SessionService(
             return false
         }
 
-        if (sessionRepository.existsById(sessionId)) {
-            sessionsCache.put(sessionId, true)
-            return false
-        }
-
-        sessionRepository.save(SessionEntity(sessionId = sessionId, websiteId = websiteId, createdAt = createdAt))
+        val inserted = sessionRepository.insertIfAbsent(sessionId, websiteId, createdAt) == 1
         sessionsCache.put(sessionId, true)
-        LOG.debug("Registered new session sessionId={} websiteId={}", sessionId, websiteId)
-        return true
+
+        if (inserted) {
+            LOG.debug("Registered new session sessionId={} websiteId={}", sessionId, websiteId)
+        }
+        return inserted
     }
 
     @Scheduled(cron = "0 0 3 * * *")

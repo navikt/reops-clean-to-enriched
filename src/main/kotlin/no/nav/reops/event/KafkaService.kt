@@ -144,11 +144,21 @@ class KafkaService(
                 }
         } catch (ex: Exception) {
             kafkaEventsFailure.increment()
+            val retryAttempts = record.headers()
+                .lastHeader(org.springframework.kafka.retrytopic.RetryTopicHeaders.DEFAULT_HEADER_ATTEMPTS)
+                ?.value()?.let { bytes ->
+                    runCatching { String(bytes).toInt() }
+                        .recoverCatching { java.nio.ByteBuffer.wrap(bytes).int }
+                        .getOrNull()
+                }
             LOG.error(
-                "Failed processing kafka event key={} offset={} partition={}",
+                "Failed processing kafka event key={} payloadId={} topic={} offset={} partition={} retryAttempts={}",
                 key,
+                event.payload.id,
+                record.topic(),
                 record.offset(),
                 record.partition(),
+                retryAttempts,
                 ex
             )
             throw ex
