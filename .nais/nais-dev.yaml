@@ -16,7 +16,7 @@ spec:
     initialDelay: 5
   replicas:
     min: 2
-    max: 8
+    max: 4
     scalingStrategy:
       kafka:
         topic: team-researchops.analytics-clean
@@ -29,7 +29,7 @@ spec:
     limits:
       memory: 256Mi
     requests:
-      cpu: "400m"
+      cpu: "800m"
       memory: 124Mi
   kafka:
     pool: nav-dev
