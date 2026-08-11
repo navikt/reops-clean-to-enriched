@@ -77,6 +77,11 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
 
 tasks.named<Jar>("bootJar") {
 	archiveFileName.set("app.jar")
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named<ProcessResources>("processResources") {
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 graalvmNative {
