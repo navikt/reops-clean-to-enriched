@@ -33,10 +33,10 @@ spec:
     path: /internal/prometheus
   resources:
     limits:
-      memory: 768Mi
+      memory: 1536Mi
     requests:
       cpu: "400m"
-      memory: 512Mi
+      memory: 1024Mi
   kafka:
     pool: nav-prod
   gcp:
