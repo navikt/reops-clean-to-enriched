@@ -32,7 +32,7 @@ jobs:
 
   docker:
     name: "docker"
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
@@ -46,7 +46,6 @@ jobs:
           identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
           project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
           dockerfile: Dockerfile
-          build_args: CI=true
       - name: Show image for later prod deploy
         run: |
           echo "========================================"
