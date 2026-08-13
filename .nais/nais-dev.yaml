@@ -28,6 +28,8 @@ spec:
         topic: team-researchops.analytics-clean
         consumerGroup: reops-clean-to-enriched
         threshold: 100
+      cpu:
+        thresholdPercentage: 90
   prometheus:
     enabled: true
     path: /internal/prometheus
@@ -35,7 +37,7 @@ spec:
     limits:
       memory: 1536Mi
     requests:
-      cpu: "800m"
+      cpu: "200m"
       memory: 1024Mi
   kafka:
     pool: nav-dev
