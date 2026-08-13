@@ -1,7 +1,7 @@
 # Runtime image only — jar is built by CI before docker build runs
 # (see .github/workflows/deploy.yaml: test job builds build/libs/app.jar,
 # uploaded as artifact, downloaded here)
-FROM eclipse-temurin:25-jre
+FROM europe-north1-docker.pkg.dev/cgr-nav/pull-through/nav.no/jre:openjdk-25
 LABEL maintainer="team-researchops"
 WORKDIR /app
 COPY build/libs/app.jar ./app.jar
