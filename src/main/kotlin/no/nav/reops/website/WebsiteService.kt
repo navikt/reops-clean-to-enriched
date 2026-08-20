@@ -84,11 +84,22 @@ class WebsiteService(
         websiteId = websiteId,
         name = name,
         domain = domain,
-        updatedAt = updatedAt
+        updatedAt = updatedAt,
+        teamId = if (isProdCluster) PROD_TEAM_ID else null
     )
 
     private companion object {
         private val LOG = LoggerFactory.getLogger(WebsiteService::class.java)
+
+        // team_id is a legacy BigQuery column (from the old umami schema) with no real
+        // Postgres equivalent. It's used purely to control whether a website shows up on
+        // https://innblikk.ansatt.nav.no (which filters to team_id == PROD_TEAM_ID).
+        // Since dev-cluster registrations write to an entirely separate BigQuery project
+        // and never reach the prod table, "is this instance running in the prod cluster"
+        // is a reliable proxy for "should this website be prod-visible" — no per-website
+        // input needed.
+        private val PROD_TEAM_ID: UUID = UUID.fromString("aa113c34-e213-4ed6-a4f0-0aea8a503e6b")
+        private val isProdCluster: Boolean = System.getenv("NAIS_CLUSTER_NAME") == "prod-gcp"
     }
 }
 
