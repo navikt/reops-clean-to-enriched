@@ -34,11 +34,13 @@ class WebsiteService(
         websiteRepository.findById(websiteId).map { it.toDto() }.orElse(null)
 
     fun create(websiteId: UUID? = null, name: String, domain: String): Website {
+        val now = Instant.now()
         val entity = WebsiteEntity(
             websiteId = websiteId ?: UUID.randomUUID(),
             name = name,
             domain = domain,
-            updatedAt = Instant.now()
+            updatedAt = now,
+            createdAt = now
         )
         val saved = websiteRepository.save(entity)
         val website = saved.toDto()
@@ -85,6 +87,7 @@ class WebsiteService(
         name = name,
         domain = domain,
         updatedAt = updatedAt,
+        createdAt = createdAt,
         teamId = if (isProdCluster) PROD_TEAM_ID else null
     )
 

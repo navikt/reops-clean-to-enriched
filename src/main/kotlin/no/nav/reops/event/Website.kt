@@ -10,6 +10,7 @@ data class Website(
     val name: String,
     val domain: String,
     val updatedAt: Instant,
+    val createdAt: Instant? = null,
     val teamId: UUID? = null
 )
 

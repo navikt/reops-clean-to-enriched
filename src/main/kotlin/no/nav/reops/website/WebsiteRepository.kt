@@ -14,7 +14,8 @@ data class WebsiteEntity(
     @Id @Column(name = "website_id") val websiteId: UUID = UUID.randomUUID(),
     val name: String = "",
     val domain: String = "",
-    @Column(name = "updated_at") val updatedAt: Instant = Instant.now()
+    @Column(name = "updated_at") val updatedAt: Instant = Instant.now(),
+    @Column(name = "created_at") val createdAt: Instant = Instant.now()
 )
 
 interface WebsiteRepository : JpaRepository<WebsiteEntity, UUID>
