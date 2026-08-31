@@ -11,7 +11,9 @@ data class EnrichedEvent(
     val createdAt: Instant,
     val websiteEvent: WebsiteEvent,
     val session: Session,
-    val isNewSession: Boolean = true
+    val isNewSession: Boolean = true,
+    /** "pageview", "custom_event", or "identify" — mirrors upstream Event.type semantics */
+    val type: String? = null
 )
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
