@@ -42,8 +42,14 @@ fun Event.toEnrichedEvent(
 
     val isIdentify = this.type == "identify"
 
+    val eventTypeName = when {
+        isIdentify -> "identify"
+        eventType == 2 -> "custom_event"
+        else -> "pageview"
+    }
+
     return EnrichedEvent(
-        websiteId = this.payload.website, sessionId = sessionId, createdAt = createdAt, websiteEvent = WebsiteEvent(
+        websiteId = this.payload.website, sessionId = sessionId, createdAt = createdAt, type = eventTypeName, websiteEvent = WebsiteEvent(
             eventId = eventId,
             urlPath = extractPath(this.payload.url),
             urlQuery = extractQuery(this.payload.url),
