@@ -276,6 +276,99 @@ class EnrichmentTest {
         assertThat(enriched.websiteEvent.hostname).isEqualTo("felgen.intern.nav.no")
     }
 
+    // ── masked-proxy-placeholder URLs (fia / lydia case) ─────────────
+    //
+    // Clientside maskers (e.g. lydia-radgiver-frontend analytics-klient-utils)
+    // replace orgnr/saknr/samarbeid-id with bracketed placeholders such as
+    // "[PROXY-ORG-NUMBER]" BEFORE the event is sent. Square brackets are
+    // illegal in a java.net.URI path (only allowed in IPv6 host literals),
+    // so URI(...) throws and extractPath falls back to returning the whole
+    // string — leaking the full absolute URL (scheme + host) into url_path.
+
+    @Test
+    fun `absolute URL with bracketed placeholder in path should still yield only the path`() {
+        val event = sampleEvent(url = "https://fia.ansatt.nav.no/virksomhet/[PROXY-ORG-NUMBER]")
+        val enriched = event.toEnrichedEvent()
+        // desired behavior: scheme+host stripped even when placeholders present
+        assertThat(enriched.websiteEvent.urlPath).isEqualTo("/virksomhet/[PROXY-ORG-NUMBER]")
+    }
+
+    @Test
+    fun `absolute URL with several bracketed placeholders in path`() {
+        val event = sampleEvent(
+            url = "https://fia.ansatt.nav.no/virksomhet/[PROXY-ORG-NUMBER]/samarbeid/[PROXY-SAMARBEID-ID]"
+        )
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.urlPath)
+            .isEqualTo("/virksomhet/[PROXY-ORG-NUMBER]/samarbeid/[PROXY-SAMARBEID-ID]")
+    }
+
+    @Test
+    fun `absolute URL with placeholders plus query and fragment`() {
+        val event = sampleEvent(
+            url = "https://fia.ansatt.nav.no/virksomhet/[PROXY-ORG-NUMBER]/sak/[PROXY-SAK-NUMBER]?fane=oppgaver#top"
+        )
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.urlPath)
+            .isEqualTo("/virksomhet/[PROXY-ORG-NUMBER]/sak/[PROXY-SAK-NUMBER]")
+        assertThat(enriched.websiteEvent.urlQuery).isEqualTo("fane=oppgaver")
+    }
+
+    @Test
+    fun `referrer with bracketed placeholder should not leak scheme and host into referrerPath`() {
+        val event = sampleEvent(
+            referrer = "https://fia.ansatt.nav.no/virksomhet/[PROXY-ORG-NUMBER]/samarbeid/[PROXY-SAMARBEID-ID]"
+        )
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.referrerPath)
+            .isEqualTo("/virksomhet/[PROXY-ORG-NUMBER]/samarbeid/[PROXY-SAMARBEID-ID]")
+        assertThat(enriched.websiteEvent.referrerDomain).isEqualTo("fia.ansatt.nav.no")
+    }
+
+    @Test
+    fun `single-slash protocol URL with placeholders`() {
+        // observed in prod data: "https:/fia.ansatt.nav.no/virksomhet/[PROXY-ORG-NUMBER]"
+        val event = sampleEvent(url = "https:/fia.ansatt.nav.no/virksomhet/[PROXY-ORG-NUMBER]")
+        val enriched = event.toEnrichedEvent()
+        // java.net.URI treats "https:/fia..." as scheme "https" with an opaque/path part —
+        // pin down actual behavior so the data anomaly is understood
+        assertThat(enriched.websiteEvent.urlPath).doesNotContain("https:/")
+    }
+
+    // ── plain absolute URLs (regression guard: must never leak scheme/host) ──
+
+    @Test
+    fun `plain absolute URL yields only the path`() {
+        val event = sampleEvent(url = "https://rekrutteringsbistand.intern.nav.no/stilling")
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.urlPath).isEqualTo("/stilling")
+        assertThat(enriched.websiteEvent.urlQuery).isNull()
+    }
+
+    @Test
+    fun `absolute URL with trailing slash only yields root path`() {
+        val event = sampleEvent(url = "https://etterlatte-saksbehandling.intern.nav.no/")
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.urlPath).isEqualTo("/")
+    }
+
+    @Test
+    fun `plain absolute URL without trailing path yields root path`() {
+        val event = sampleEvent(url = "https://finnhjelpemiddel.nav.no/sok")
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.urlPath).isEqualTo("/sok")
+    }
+
+    @Test
+    fun `absolute URL with several bracketed UUID placeholders in path`() {
+        val event = sampleEvent(
+            url = "https://supstonad.intern.nav.no/saksoversikt/[PROXY-UUID]/behandling/[PROXY-UUID]/attestering"
+        )
+        val enriched = event.toEnrichedEvent()
+        assertThat(enriched.websiteEvent.urlPath)
+            .isEqualTo("/saksoversikt/[PROXY-UUID]/behandling/[PROXY-UUID]/attestering")
+    }
+
     @Test
     fun `browser, os, device from UserAgentInfo are set on session`() {
         val event = sampleEvent()

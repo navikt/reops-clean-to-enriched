@@ -122,7 +122,9 @@ private fun normalizeLanguage(language: String?): String? {
 /**
  * Extracts the path component from a URL, stripping scheme, host, query parameters and fragments.
  * Matches standard Umami behavior: stores just the pathname (e.g. "/no/person"), not the full URL.
- * Returns the original string (minus query/fragment) if parsing fails.
+ * Falls back to lenient string splitting when [URI] parsing fails — e.g. clientside maskers
+ * replace sensitive segments with bracketed placeholders like "[PROXY-ORG-NUMBER]", and square
+ * brackets are illegal in a [URI] path.
  */
 private fun extractPath(url: String?): String? {
     if (url.isNullOrBlank()) return url
@@ -134,8 +136,23 @@ private fun extractPath(url: String?): String? {
             url.substringBefore("?").substringBefore("#")
         }
     } catch (_: Exception) {
-        url.substringBefore("?").substringBefore("#")
+        lenientPath(url)
     }
+}
+
+/**
+ * Lenient path extraction for URLs that [URI] cannot parse (e.g. bracketed mask placeholders).
+ * Strips "scheme://authority" (or "scheme:/authority", observed in prod data) and any
+ * query/fragment, returning just the path — or "/" when nothing remains after the authority.
+ */
+private fun lenientPath(url: String): String {
+    val withoutQuery = url.substringBefore("?").substringBefore("#")
+    val schemeMatch = Regex("^[A-Za-z][A-Za-z0-9+.-]*:(//?)").find(withoutQuery) ?: return withoutQuery
+    val afterScheme = withoutQuery.substring(schemeMatch.range.last + 1)
+    val slashIdx = afterScheme.indexOf('/')
+    if (slashIdx < 0) return "/"
+    val path = afterScheme.substring(slashIdx)
+    return path.ifEmpty { "/" }
 }
 
 /**
@@ -159,14 +176,27 @@ private fun extractQuery(url: String?): String? {
 /**
  * Extracts the domain (host) from a URL string.
  * Returns null if the URL is blank or unparseable.
+ * Falls back to lenient string splitting when [URI] parsing fails (e.g. bracketed
+ * mask placeholders in the path).
  */
 private fun extractDomain(url: String?): String? {
     if (url.isNullOrBlank()) return null
     return try {
         URI(url).host
     } catch (_: Exception) {
-        null
+        lenientHost(url)
     }
+}
+
+/**
+ * Lenient host extraction for URLs that [URI] cannot parse. Requires a scheme
+ * ("scheme://" or "scheme:/"), then takes everything up to the next '/', '?' or '#'.
+ */
+private fun lenientHost(url: String): String? {
+    val schemeMatch = Regex("^[A-Za-z][A-Za-z0-9+.-]*:(//?)").find(url) ?: return null
+    val afterScheme = url.substring(schemeMatch.range.last + 1)
+    val host = afterScheme.takeWhile { it != '/' && it != '?' && it != '#' }
+    return host.ifEmpty { null }
 }
 
 /**
