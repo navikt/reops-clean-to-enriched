@@ -1,6 +1,5 @@
 package no.nav.reops.website
 
-import no.nav.reops.event.Website
 import no.nav.reops.event.WebsiteChangeEvent
 import no.nav.reops.event.WebsiteEventStatus
 import org.assertj.core.api.Assertions.assertThat
@@ -11,6 +10,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.kafka.core.KafkaTemplate
@@ -24,6 +24,7 @@ class WebsiteServiceTest {
     private val websiteRepository: WebsiteRepository = mock()
     private val kafkaTemplate: KafkaTemplate<String, WebsiteChangeEvent> = mock()
     private val websiteTopic = "test-website-topic"
+    private val actor = "Z123456"
 
     private lateinit var service: WebsiteService
 
@@ -33,36 +34,53 @@ class WebsiteServiceTest {
         service = WebsiteService(websiteRepository, kafkaTemplate, websiteTopic)
     }
 
+    private fun entity(
+        websiteId: UUID = UUID.randomUUID(),
+        name: String = "Test",
+        domain: String = "test.no",
+        ownerTeamId: UUID? = null,
+        deletedAt: Instant? = null,
+        version: Long = 0L,
+    ) = WebsiteEntity(
+        websiteId = websiteId,
+        name = name,
+        domain = domain,
+        updatedAt = Instant.now(),
+        createdAt = Instant.now(),
+        ownerTeamId = ownerTeamId,
+        deletedAt = deletedAt,
+        version = version,
+    )
+
     @Test
-    fun `create saves entity and publishes CREATE event`() {
+    fun `create generates server-side id, saves entity and publishes CREATE event`() {
         whenever(websiteRepository.save(any<WebsiteEntity>())).thenAnswer { it.arguments[0] }
+        val ownerTeamId = UUID.randomUUID()
 
-        val result = service.create(name = "Test Site", domain = "test.example.no")
+        val result = service.create("Test Site", "test.example.no", ownerTeamId, actor)
 
-        assertThat(result.name).isEqualTo("Test Site")
-        assertThat(result.domain).isEqualTo("test.example.no")
-        assertThat(result.websiteId).isNotNull()
-        assertThat(result.updatedAt).isNotNull()
+        assertThat(result.ownerTeamId).isEqualTo(ownerTeamId)
+        assertThat(result.deletedAt).isNull()
 
         val eventCaptor = argumentCaptor<WebsiteChangeEvent>()
         verify(kafkaTemplate).send(eq(websiteTopic), any<String>(), eventCaptor.capture())
         assertThat(eventCaptor.firstValue.status).isEqualTo(WebsiteEventStatus.CREATE)
-        assertThat(eventCaptor.firstValue.website.name).isEqualTo("Test Site")
+        assertThat(eventCaptor.firstValue.website.deletedAt).isNull()
     }
 
     @Test
-    fun `update persists changes and publishes UPDATE event`() {
+    fun `update persists changes and publishes UPDATE event when version matches`() {
         val websiteId = UUID.randomUUID()
-        val existing = WebsiteEntity(websiteId, "Old Name", "old.no", Instant.now())
+        val existing = entity(websiteId, version = 4L)
+        val newOwner = UUID.randomUUID()
 
         whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(existing))
         whenever(websiteRepository.save(any<WebsiteEntity>())).thenAnswer { it.arguments[0] }
 
-        val result = service.update(websiteId, "New Name", "new.no")
+        val result = service.update(websiteId, "New Name", "new.no", newOwner, expectedVersion = 4L, actorNavIdent = actor)
 
-        assertThat(result.websiteId).isEqualTo(websiteId)
         assertThat(result.name).isEqualTo("New Name")
-        assertThat(result.domain).isEqualTo("new.no")
+        assertThat(result.ownerTeamId).isEqualTo(newOwner)
 
         val eventCaptor = argumentCaptor<WebsiteChangeEvent>()
         verify(kafkaTemplate).send(eq(websiteTopic), any<String>(), eventCaptor.capture())
@@ -70,119 +88,171 @@ class WebsiteServiceTest {
     }
 
     @Test
-    fun `update throws WebsiteNotFoundException when website does not exist`() {
-        val websiteId = UUID.randomUUID()
-        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.empty())
+    fun `ownership-only changes stay in Postgres without republishing BigQuery metadata`() {
+        val existing = entity(version = 3L)
+        val newOwner = UUID.randomUUID()
+        whenever(websiteRepository.findById(existing.websiteId)).thenReturn(Optional.of(existing))
+        whenever(websiteRepository.save(any<WebsiteEntity>())).thenAnswer { it.arguments[0] }
 
-        assertThrows<WebsiteNotFoundException> {
-            service.update(websiteId, "Name", "domain.no")
-        }
+        val result = service.update(
+            existing.websiteId, existing.name, existing.domain, newOwner,
+            expectedVersion = 3L, actorNavIdent = actor,
+        )
+
+        assertThat(result.ownerTeamId).isEqualTo(newOwner)
+        verify(websiteRepository).save(any<WebsiteEntity>())
+        verify(kafkaTemplate, never()).send(any<String>(), any<String>(), any())
     }
 
     @Test
-    fun `delete removes entity and publishes DELETE event`() {
+    fun `update throws conflict when version does not match authorized snapshot`() {
         val websiteId = UUID.randomUUID()
-        val existing = WebsiteEntity(websiteId, "Test", "test.no", Instant.now())
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity(websiteId, version = 9L)))
+
+        assertThrows<WebsiteConflictException> {
+            service.update(websiteId, "N", "d.no", null, expectedVersion = 4L, actorNavIdent = actor)
+        }
+        verify(websiteRepository, never()).save(any<WebsiteEntity>())
+        verify(kafkaTemplate, never()).send(any<String>(), any<String>(), any())
+    }
+
+    @Test
+    fun `update throws conflict on soft-deleted row so it cannot be revived`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.findById(websiteId))
+            .thenReturn(Optional.of(entity(websiteId, version = 2L, deletedAt = Instant.now())))
+
+        assertThrows<WebsiteConflictException> {
+            service.update(websiteId, "N", "d.no", null, expectedVersion = 2L, actorNavIdent = actor)
+        }
+        verify(websiteRepository, never()).save(any<WebsiteEntity>())
+    }
+
+    @Test
+    fun `softDelete stamps deletedAt=updatedAt and publishes DELETE tombstone`() {
+        val websiteId = UUID.randomUUID()
+        val existing = entity(websiteId, version = 1L)
 
         whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(existing))
+        whenever(websiteRepository.save(any<WebsiteEntity>())).thenAnswer { it.arguments[0] }
 
-        service.delete(websiteId)
+        val result = service.softDelete(websiteId, expectedVersion = 1L, actorNavIdent = actor)
 
-        verify(websiteRepository).deleteById(websiteId)
+        assertThat(result.deletedAt).isNotNull()
+        assertThat(result.updatedAt).isEqualTo(result.deletedAt)
 
         val eventCaptor = argumentCaptor<WebsiteChangeEvent>()
         verify(kafkaTemplate).send(eq(websiteTopic), any<String>(), eventCaptor.capture())
         assertThat(eventCaptor.firstValue.status).isEqualTo(WebsiteEventStatus.DELETE)
+        assertThat(eventCaptor.firstValue.website.deletedAt).isEqualTo(result.deletedAt)
+        verify(websiteRepository, never()).deleteById(any<UUID>())
     }
 
     @Test
-    fun `delete throws WebsiteNotFoundException when website does not exist`() {
+    fun `softDelete is idempotent and does not republish for already deleted website`() {
+        val websiteId = UUID.randomUUID()
+        val deletionTime = Instant.now().minusSeconds(60)
+        val existing = entity(websiteId, version = 3L, deletedAt = deletionTime)
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(existing))
+
+        val result = service.softDelete(websiteId, expectedVersion = 3L, actorNavIdent = actor)
+
+        assertThat(result.deletedAt).isEqualTo(deletionTime)
+        verify(websiteRepository, never()).save(any<WebsiteEntity>())
+        verify(kafkaTemplate, never()).send(any<String>(), any<String>(), any())
+    }
+
+    @Test
+    fun `softDelete throws conflict when version does not match`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity(websiteId, version = 5L)))
+
+        assertThrows<WebsiteConflictException> {
+            service.softDelete(websiteId, expectedVersion = 1L, actorNavIdent = actor)
+        }
+        verify(websiteRepository, never()).save(any<WebsiteEntity>())
+    }
+
+    @Test
+    fun `hardDelete removes PG row and publishes NO event`() {
+        val websiteId = UUID.randomUUID()
+        val existing = entity(websiteId, version = 0L)
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(existing))
+
+        service.hardDelete(websiteId, expectedVersion = 0L, actorNavIdent = actor)
+
+        verify(websiteRepository).delete(existing)
+        verify(kafkaTemplate, never()).send(any<String>(), any<String>(), any())
+    }
+
+    @Test
+    fun `hardDelete throws conflict when version does not match`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity(websiteId, version = 2L)))
+
+        assertThrows<WebsiteConflictException> {
+            service.hardDelete(websiteId, expectedVersion = 0L, actorNavIdent = actor)
+        }
+        verify(websiteRepository, never()).delete(any<WebsiteEntity>())
+    }
+
+    @Test
+    fun `hardDelete throws not found when website missing`() {
         val websiteId = UUID.randomUUID()
         whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.empty())
 
         assertThrows<WebsiteNotFoundException> {
-            service.delete(websiteId)
+            service.hardDelete(websiteId, expectedVersion = 0L, actorNavIdent = actor)
         }
     }
 
     @Test
-    fun `findAll returns all websites from repository`() {
-        val entities = listOf(
-            WebsiteEntity(UUID.randomUUID(), "Site 1", "site1.no", Instant.now()),
-            WebsiteEntity(UUID.randomUUID(), "Site 2", "site2.no", Instant.now())
-        )
-        whenever(websiteRepository.findAll()).thenReturn(entities)
-
-        val result = service.findAll()
-        assertThat(result).hasSize(2)
-    }
-
-    @Test
-    fun `findById returns website when found`() {
+    fun `findById returns registration when found and null when missing`() {
         val websiteId = UUID.randomUUID()
-        val entity = WebsiteEntity(websiteId, "Test", "test.no", Instant.now())
-        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity))
+        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity(websiteId)))
+        assertThat(service.findById(websiteId)!!.websiteId).isEqualTo(websiteId)
 
-        val result = service.findById(websiteId)
-        assertThat(result).isNotNull
-        assertThat(result!!.websiteId).isEqualTo(websiteId)
-    }
-
-    @Test
-    fun `findById returns null when not found`() {
-        val websiteId = UUID.randomUUID()
         whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.empty())
-
-        val result = service.findById(websiteId)
-        assertThat(result).isNull()
+        assertThat(service.findById(websiteId)).isNull()
     }
 
     @Test
-    fun `findAllFresh returns all websites directly from repository`() {
-        val entities = listOf(
-            WebsiteEntity(UUID.randomUUID(), "Site 1", "site1.no", Instant.now()),
-            WebsiteEntity(UUID.randomUUID(), "Site 2", "site2.no", Instant.now())
-        )
-        whenever(websiteRepository.findAll()).thenReturn(entities)
+    fun `findAll excludes soft-deleted rows unless includeDeleted`() {
+        val active = entity(name = "Site 1")
+        val deleted = entity(name = "Site 2", deletedAt = Instant.now())
+        whenever(websiteRepository.findByDeletedAtIsNull()).thenReturn(listOf(active))
+        whenever(websiteRepository.findAll()).thenReturn(listOf(active, deleted))
 
-        val result = service.findAllFresh()
-        assertThat(result).hasSize(2)
-        assertThat(result.map { it.name }).containsExactly("Site 1", "Site 2")
+        assertThat(service.findAll(includeDeleted = false)).hasSize(1)
+        assertThat(service.findAll(includeDeleted = true)).hasSize(2)
     }
 
     @Test
-    fun `findByIdFresh returns website directly from repository`() {
+    fun `findByOwnerTeams returns empty for no teams without hitting repository`() {
+        assertThat(service.findByOwnerTeams(emptyList(), includeDeleted = false)).isEmpty()
+        verify(websiteRepository, never()).findByOwnerTeamIdIn(any())
+    }
+
+    @Test
+    fun `findByOwnerTeams filters by ownership`() {
+        val teamId = UUID.randomUUID()
+        val owned = entity(ownerTeamId = teamId)
+        whenever(websiteRepository.findByOwnerTeamIdInAndDeletedAtIsNull(listOf(teamId))).thenReturn(listOf(owned))
+
+        val result = service.findByOwnerTeams(listOf(teamId), includeDeleted = false)
+
+        assertThat(result).hasSize(1)
+        assertThat(result.first().ownerTeamId).isEqualTo(teamId)
+    }
+
+    @Test
+    fun `isAllowed is true only for active registrations`() {
         val websiteId = UUID.randomUUID()
-        val entity = WebsiteEntity(websiteId, "Test", "test.no", Instant.now())
-        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.of(entity))
-
-        val result = service.findByIdFresh(websiteId)
-        assertThat(result).isNotNull
-        assertThat(result!!.websiteId).isEqualTo(websiteId)
-    }
-
-    @Test
-    fun `findByIdFresh returns null when not found`() {
-        val websiteId = UUID.randomUUID()
-        whenever(websiteRepository.findById(websiteId)).thenReturn(Optional.empty())
-
-        val result = service.findByIdFresh(websiteId)
-        assertThat(result).isNull()
-    }
-
-    @Test
-    fun `isAllowed returns true when website exists`() {
-        val websiteId = UUID.randomUUID()
-        whenever(websiteRepository.existsById(websiteId)).thenReturn(true)
-
+        whenever(websiteRepository.existsByWebsiteIdAndDeletedAtIsNull(websiteId)).thenReturn(true)
         assertThat(service.isAllowed(websiteId)).isTrue()
-    }
 
-    @Test
-    fun `isAllowed returns false when website does not exist`() {
-        val websiteId = UUID.randomUUID()
-        whenever(websiteRepository.existsById(websiteId)).thenReturn(false)
-
-        assertThat(service.isAllowed(websiteId)).isFalse()
+        whenever(websiteRepository.existsByWebsiteIdAndDeletedAtIsNull(websiteId)).thenReturn(false)
+        val freshService = WebsiteService(websiteRepository, kafkaTemplate, websiteTopic)
+        assertThat(freshService.isAllowed(websiteId)).isFalse()
     }
 }

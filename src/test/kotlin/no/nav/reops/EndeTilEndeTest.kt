@@ -55,6 +55,9 @@ class EndeTilEndeTest {
     @Autowired
     lateinit var cacheManager: org.springframework.cache.CacheManager
 
+    @Autowired
+    lateinit var objectMapper: tools.jackson.databind.ObjectMapper
+
     private lateinit var outputContainer: KafkaMessageListenerContainer<String, EnrichedEvent>
     private val receivedMessages = CopyOnWriteArrayList<EnrichedEvent>()
 
@@ -94,6 +97,20 @@ class EndeTilEndeTest {
     fun tearDown() {
         outputContainer.stop()
         receivedMessages.clear()
+    }
+
+    @Test
+    fun `registration responses retain explicit null ownership and deletion fields`() {
+        val now = java.time.Instant.now()
+        val registration = no.nav.reops.website.WebsiteRegistration(
+            websiteId = UUID.randomUUID(), name = "Test", domain = "test.nav.no",
+            ownerTeamId = null, createdAt = now, updatedAt = now, deletedAt = null,
+        )
+        val json = objectMapper.readTree(objectMapper.writeValueAsString(registration))
+        assertThat(json.has("ownerTeamId")).isTrue()
+        assertThat(json["ownerTeamId"].isNull).isTrue()
+        assertThat(json.has("deletedAt")).isTrue()
+        assertThat(json["deletedAt"].isNull).isTrue()
     }
 
     @Test

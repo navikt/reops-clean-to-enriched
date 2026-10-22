@@ -31,6 +31,17 @@ class CacheConfiguration {
                 .build()
         )
 
+        // Team Catalog membership cache: membership changes rarely and the lookup is on
+        // the hot path of every management request, so cache briefly per NAVident.
+        // Only successful lookups are cached — failures throw and fail closed.
+        websiteCacheManager.registerCustomCache(
+            "teamMemberships",
+            Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofMinutes(10))
+                .maximumSize(10_000)
+                .buildAsync()
+        )
+
         return websiteCacheManager
     }
 }
