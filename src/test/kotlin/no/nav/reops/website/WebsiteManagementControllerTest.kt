@@ -313,6 +313,19 @@ class WebsiteManagementControllerTest {
     }
 
     @Test
+    fun `update of inaccessible soft-deleted registration is 404 not 409`() {
+        val websiteId = UUID.randomUUID()
+        stubTeams("Z123456", listOf(teamA))
+        whenever(websiteService.findEntityById(websiteId))
+            .thenReturn(entity(websiteId, teamB.id, deletedAt = Instant.now()))
+
+        val ex = assertThrows<ErrorResponseException> {
+            controller.update(user(), websiteId, UpsertWebsiteRequest("New", "site.nav.no", null)).block()
+        }
+        assertThat(ex.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+    }
+
+    @Test
     fun `admin may reassign ownership`() {
         val websiteId = UUID.randomUUID()
         val existing = entity(websiteId, teamA.id, version = 3L)

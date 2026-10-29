@@ -20,7 +20,7 @@ data class WebsiteEntity(
     @Column(name = "owner_team_id") val ownerTeamId: UUID? = null,
     @Column(name = "deleted_at") val deletedAt: Instant? = null,
     // Internal optimistic-lock column; NOT exposed on the public registration DTO.
-    @Version @Column(name = "version") val version: Long = 0,
+    @Version @Column(name = "version") val version: Long? = null,
 )
 
 interface WebsiteRepository : JpaRepository<WebsiteEntity, UUID> {

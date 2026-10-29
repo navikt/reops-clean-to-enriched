@@ -176,19 +176,16 @@ class WebsiteManagementController(
             Mono.fromCallable {
                 val existing = websiteService.findEntityById(websiteId)
                     ?: throw ErrorResponseException(HttpStatus.NOT_FOUND)
+                if (!isAdmin && !canSee(teams, existing.toRegistration())) {
+                    throw ErrorResponseException(HttpStatus.NOT_FOUND)
+                }
                 if (existing.deletedAt != null) {
                     // Restore is out of scope; deleted registrations are read-only.
                     throw ErrorResponseException(HttpStatus.CONFLICT)
                 }
-                val newOwner = if (!isAdmin) {
-                    if (!canSee(teams, existing.toRegistration())) {
-                        throw ErrorResponseException(HttpStatus.NOT_FOUND)
-                    }
-                    existing.ownerTeamId // non-admin owners cannot change ownership
-                } else {
-                    request.ownerTeamId // admin may reassign to any team UUID or null
-                }
-                websiteService.update(websiteId, name, domain, newOwner, existing.version, user.navIdent)
+                // non-admin owners cannot change ownership; admin may reassign to any team UUID or null
+                val newOwner = if (isAdmin) request.ownerTeamId else existing.ownerTeamId
+                websiteService.update(websiteId, name, domain, newOwner, requireNotNull(existing.version), user.navIdent)
             }.subscribeOn(Schedulers.boundedElastic())
         }
     }
@@ -208,7 +205,7 @@ class WebsiteManagementController(
                     throw ErrorResponseException(HttpStatus.NOT_FOUND)
                 }
                 // Idempotent — no duplicate publication; guarded by version.
-                websiteService.softDelete(websiteId, existing.version, user.navIdent)
+                websiteService.softDelete(websiteId, requireNotNull(existing.version), user.navIdent)
                 ResponseEntity.noContent().build<Void>()
             }.subscribeOn(Schedulers.boundedElastic())
         }
@@ -233,7 +230,7 @@ class WebsiteManagementController(
                     ?: throw ErrorResponseException(HttpStatus.NOT_FOUND)
                 // PG row only — no Kafka publication, no session/analytics deletion.
                 // Active registrations are accepted to support already-purged BQ rows.
-                websiteService.hardDelete(existing.websiteId, existing.version, user.navIdent)
+                websiteService.hardDelete(existing.websiteId, requireNotNull(existing.version), user.navIdent)
                 ResponseEntity.noContent().build()
             }.subscribeOn(Schedulers.boundedElastic())
         }
