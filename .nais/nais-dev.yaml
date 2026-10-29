@@ -47,12 +47,24 @@ spec:
         tier: db-f1-micro
         databases:
           - name: reops-clean-to-enriched
+  azure:
+    application:
+      enabled: true
+      tenant: nav.no
+      # Permit delegated Nav users; API code still checks caller, team and ownership.
+      allowAllUsers: true
   accessPolicy:
+    inbound:
+      rules:
+        - application: reops-innblikk-frontend
+          namespace: team-researchops
     outbound:
+      rules:
+        - application: reops-innblikk-frontend
+          namespace: team-researchops
       external:
         - host: nav-dev-kafka-nav-dev.aivencloud.com
-  ingresses:
-    - "https://reops-clean-to-enriched.ansatt.dev.nav.no"
+        - host: teamkatalog-api.intern.nav.no
   env:
     - name: SPRING_PROFILES_ACTIVE
       value: kubernetes

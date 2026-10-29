@@ -11,7 +11,11 @@ data class Website(
     val domain: String,
     val updatedAt: Instant,
     val createdAt: Instant? = null,
-    val teamId: UUID? = null
+    val teamId: UUID? = null,
+    // Additive tombstone timestamp. Only set on DELETE events for soft-deleted
+    // registrations; omitted (null) for active records. ownerTeamId is deliberately
+    // NOT part of this payload — that requires a separate downstream schema change.
+    val deletedAt: Instant? = null
 )
 
 enum class WebsiteEventStatus {

@@ -37,7 +37,11 @@ analytics-clean (Kafka)
 
 ### Nettstedshåndtering
 - Nettsteder cachet i minnet (Caffeine) med kort TTL
-- REST-endepunkt for administrasjon: `WebsiteManagementController`
+- Sikret REST-endepunkt for administrasjon: `WebsiteManagementController` under
+  `/api/manage/websites` (Azure AD OBO + Team Catalog-eierskap). Se
+  [`docs/website-management.md`](docs/website-management.md) for API, konfigurasjon og
+  utrullingsnotater.
+- Den gamle statiske UI-en og de uautentiserte `/api/websites`-endepunktene er fjernet.
 
 ## Forutsetninger
 - Java 25

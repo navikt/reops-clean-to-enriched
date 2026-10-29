@@ -8,6 +8,13 @@ spring:
       security.protocol: PLAINTEXT
     retry:
       backoff-delay: 1000
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # No real IdP locally: management API stays protected, tokens must be signed by
+          # a key served here (e.g. a local mock-oauth2-server).
+          jwk-set-uri: http://localhost:8081/default/jwks
   datasource:
     url: jdbc:postgresql://localhost:5432/reops-clean-to-enriched
     username: reops-clean-to-enriched

@@ -73,6 +73,17 @@ management:
 
 app:
   secret: ${APP_SECRET:}
+  reops-team-id: 26dba481-fd96-40a8-b47d-b1ad0002bc74
+  team-catalog:
+    # Team Catalog has a single stable instance (teamkatalog.nav.no); its data is openly
+    # readable inside Nav and the "dev" API is teamkatalog-team's own sandbox, not a
+    # mirror — so both clusters use the same base URL.
+    base-url: https://teamkatalog-api.intern.nav.no
+  security:
+    # Nais-injected JSON of azure.application.preAuthorizedApps
+    # ([{name:"<cluster>:<namespace>:<app>",clientId:"<uuid>"}]). The azp validator
+    # resolves the Innblikk BFF client id from this at runtime — no manual config.
+    pre-authorized-apps-json: ${AZURE_APP_PRE_AUTHORIZED_APPS:}
 
 logging:
   level:

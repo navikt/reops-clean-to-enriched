@@ -5,90 +5,216 @@ import no.nav.reops.event.WebsiteChangeEvent
 import no.nav.reops.event.WebsiteEventStatus
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
+import org.springframework.cache.annotation.Caching
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * Thrown when the optimistic-lock version supplied by the authorized controller snapshot
+ * no longer matches the persisted row — i.e. the row changed (owner/state) between
+ * authorization and mutation. Mapped to 409 by the controller.
+ */
+class WebsiteConflictException(websiteId: UUID) :
+    RuntimeException("Website was modified concurrently: $websiteId")
+
 @Service
 class WebsiteService(
     private val websiteRepository: WebsiteRepository,
     private val websiteEventKafkaTemplate: KafkaTemplate<String, WebsiteChangeEvent>,
-    @Value("\${spring.kafka.website-topic}") private val websiteTopic: String
+    @param:Value("\${spring.kafka.website-topic}") private val websiteTopic: String
 ) {
 
+    /**
+     * Ingestion gate for the analytics pipeline. Soft-deleted registrations stop
+     * ingestion immediately (on cache expiry/eviction) because only active rows count.
+     */
     @Cacheable("websiteAllowed")
-    fun isAllowed(websiteId: UUID): Boolean = websiteRepository.existsById(websiteId)
+    fun isAllowed(websiteId: UUID): Boolean = websiteRepository.existsByWebsiteIdAndDeletedAtIsNull(websiteId)
 
-    @Cacheable("websites")
-    fun findAll(): List<Website> = websiteRepository.findAll().map { it.toDto() }
+    fun findById(websiteId: UUID): WebsiteRegistration? =
+        websiteRepository.findById(websiteId).map { it.toRegistration() }.orElse(null)
 
-    @Cacheable("website", key = "#websiteId")
-    fun findById(websiteId: UUID): Website? =
-        websiteRepository.findById(websiteId).map { it.toDto() }.orElse(null)
+    /** Entity read used by the controller for the authorized snapshot (carries version). */
+    fun findEntityById(websiteId: UUID): WebsiteEntity? =
+        websiteRepository.findById(websiteId).orElse(null)
 
-    fun findAllFresh(): List<Website> = websiteRepository.findAll().map { it.toDto() }
+    fun findByOwnerTeams(ownerTeamIds: Collection<UUID>, includeDeleted: Boolean): List<WebsiteRegistration> {
+        if (ownerTeamIds.isEmpty()) return emptyList()
+        val entities = if (includeDeleted) {
+            websiteRepository.findByOwnerTeamIdIn(ownerTeamIds)
+        } else {
+            websiteRepository.findByOwnerTeamIdInAndDeletedAtIsNull(ownerTeamIds)
+        }
+        return entities.map { it.toRegistration() }
+    }
 
-    fun findByIdFresh(websiteId: UUID): Website? =
-        websiteRepository.findById(websiteId).map { it.toDto() }.orElse(null)
+    fun findAll(includeDeleted: Boolean): List<WebsiteRegistration> {
+        val entities = if (includeDeleted) {
+            websiteRepository.findAll()
+        } else {
+            websiteRepository.findByDeletedAtIsNull()
+        }
+        return entities.map { it.toRegistration() }
+    }
 
-    fun create(websiteId: UUID? = null, name: String, domain: String): Website {
+    @Caching(
+        evict = [
+            CacheEvict("websites", allEntries = true),
+            CacheEvict("website", key = "#result.websiteId"),
+        ]
+    )
+    fun create(name: String, domain: String, ownerTeamId: UUID?, actorNavIdent: String): WebsiteRegistration {
         val now = Instant.now()
         val entity = WebsiteEntity(
-            websiteId = websiteId ?: UUID.randomUUID(),
+            websiteId = UUID.randomUUID(),
             name = name,
             domain = domain,
             updatedAt = now,
-            createdAt = now
+            createdAt = now,
+            ownerTeamId = ownerTeamId,
         )
         val saved = websiteRepository.save(entity)
-        val website = saved.toDto()
-        publishEvent(website, WebsiteEventStatus.CREATE)
-        return website
+        audit(actorNavIdent, "CREATE", saved.websiteId)
+        publishEvent(saved.toKafkaDto(), WebsiteEventStatus.CREATE)
+        return saved.toRegistration()
     }
 
-    fun update(websiteId: UUID, name: String, domain: String): Website {
+    /**
+     * Update guarded by the authorized snapshot's [expectedVersion]. The row is re-read
+     * and saved under optimistic locking; if it changed (e.g. a concurrent admin owner
+     * transfer) since authorization, the version check fails with [WebsiteConflictException]
+     * so a stale non-admin edit cannot undo the change.
+     */
+    @Caching(
+        evict = [
+            CacheEvict("websites", allEntries = true),
+            CacheEvict("website", key = "#websiteId"),
+            CacheEvict("websiteAllowed", key = "#websiteId"),
+        ]
+    )
+    fun update(
+        websiteId: UUID,
+        name: String,
+        domain: String,
+        ownerTeamId: UUID?,
+        expectedVersion: Long,
+        actorNavIdent: String,
+    ): WebsiteRegistration {
         val existing = websiteRepository.findById(websiteId)
             .orElseThrow { WebsiteNotFoundException(websiteId) }
+        if (existing.version != expectedVersion) throw WebsiteConflictException(websiteId)
+        if (existing.deletedAt != null) throw WebsiteConflictException(websiteId)
 
         val updated = existing.copy(
             name = name,
             domain = domain,
+            ownerTeamId = ownerTeamId,
             updatedAt = Instant.now()
         )
         val saved = websiteRepository.save(updated)
-        val website = saved.toDto()
-        publishEvent(website, WebsiteEventStatus.UPDATE)
-        return website
+        audit(actorNavIdent, "UPDATE", websiteId)
+        // Ownership exists only in Postgres. Assigning it must not recreate metadata
+        // that an operator may already have purged from BigQuery.
+        if (existing.name != saved.name || existing.domain != saved.domain) {
+            publishEvent(saved.toKafkaDto(), WebsiteEventStatus.UPDATE)
+        }
+        return saved.toRegistration()
     }
 
-    fun delete(websiteId: UUID) {
-        val entity = websiteRepository.findById(websiteId)
+    /**
+     * Soft delete: sets deletedAt and updatedAt to the same deletion timestamp, evicts
+     * caches (stopping ingestion) and publishes a DELETE tombstone carrying deletedAt.
+     * Idempotent — an already-deleted row is returned unchanged with no duplicate
+     * publication. Guarded by [expectedVersion] against lost-update races.
+     */
+    @Caching(
+        evict = [
+            CacheEvict("websites", allEntries = true),
+            CacheEvict("website", key = "#websiteId"),
+            CacheEvict("websiteAllowed", key = "#websiteId"),
+        ]
+    )
+    fun softDelete(websiteId: UUID, expectedVersion: Long, actorNavIdent: String): WebsiteRegistration {
+        val existing = websiteRepository.findById(websiteId)
             .orElseThrow { WebsiteNotFoundException(websiteId) }
-        websiteRepository.deleteById(websiteId)
-        publishEvent(entity.toDto(), WebsiteEventStatus.DELETE)
+        if (existing.version != expectedVersion) throw WebsiteConflictException(websiteId)
+
+        if (existing.deletedAt != null) {
+            LOG.info("Website websiteId={} already soft-deleted; skipping duplicate publication", websiteId)
+            return existing.toRegistration()
+        }
+
+        val deletionTime = Instant.now()
+        val updated = existing.copy(
+            deletedAt = deletionTime,
+            updatedAt = deletionTime
+        )
+        val saved = websiteRepository.save(updated)
+        audit(actorNavIdent, "SOFT_DELETE", websiteId)
+        publishEvent(saved.toKafkaDto(), WebsiteEventStatus.DELETE)
+        return saved.toRegistration()
     }
 
+    /**
+     * Hard delete: removes ONLY the Postgres website row (version-checked). Deliberately
+     * publishes no Kafka event and touches no session/analytics data — BigQuery metadata
+     * and analytics stay unchanged. Used by ReOps for already-purged registrations.
+     */
+    @Caching(
+        evict = [
+            CacheEvict("websites", allEntries = true),
+            CacheEvict("website", key = "#websiteId"),
+            CacheEvict("websiteAllowed", key = "#websiteId"),
+        ]
+    )
+    fun hardDelete(websiteId: UUID, expectedVersion: Long, actorNavIdent: String) {
+        val existing = websiteRepository.findById(websiteId)
+            .orElseThrow { WebsiteNotFoundException(websiteId) }
+        if (existing.version != expectedVersion) throw WebsiteConflictException(websiteId)
+        websiteRepository.delete(existing) // version-aware delete (PG row only)
+        audit(actorNavIdent, "HARD_DELETE", websiteId)
+    }
+
+    /**
+     * Audit trail for mutations: server-derived actor NAVident + operation + website UUID
+     * only. Never logs name/domain/email/token or request bodies.
+     */
+    private fun audit(actorNavIdent: String, operation: String, websiteId: UUID) {
+        LOG.info("website-management actor={} operation={} websiteId={}", actorNavIdent, operation, websiteId)
+    }
+
+    /**
+     * Residual limitation: delivery is best-effort async. A failed send is logged but not
+     * retried/queued (no outbox). Recorded here as a known limitation; no automatic
+     * historical purge or reconciliation is introduced.
+     */
     private fun publishEvent(website: Website, status: WebsiteEventStatus) {
         val event = WebsiteChangeEvent(website = website, status = status)
         websiteEventKafkaTemplate.send(websiteTopic, website.websiteId.toString(), event)
             .whenComplete { _, ex ->
                 if (ex != null) {
-                    LOG.error("Failed to publish website event for websiteId={} status={}", website.websiteId, status, ex)
+                    LOG.error(
+                        "Failed to publish website event (no retry/outbox) for websiteId={} status={}",
+                        website.websiteId, status, ex
+                    )
                 } else {
                     LOG.info("Published website event for websiteId={} status={}", website.websiteId, status)
                 }
             }
     }
 
-    private fun WebsiteEntity.toDto() = Website(
+    private fun WebsiteEntity.toKafkaDto() = Website(
         websiteId = websiteId,
         name = name,
         domain = domain,
         updatedAt = updatedAt,
         createdAt = createdAt,
-        teamId = if (isProdCluster) PROD_TEAM_ID else null
+        teamId = if (isProdCluster) PROD_TEAM_ID else null,
+        deletedAt = deletedAt,
     )
 
     private companion object {
@@ -100,7 +226,7 @@ class WebsiteService(
         // Since dev-cluster registrations write to an entirely separate BigQuery project
         // and never reach the prod table, "is this instance running in the prod cluster"
         // is a reliable proxy for "should this website be prod-visible" — no per-website
-        // input needed.
+        // input needed. Note: this is unrelated to ownerTeamId, which is a Team Catalog id.
         private val PROD_TEAM_ID: UUID = UUID.fromString("aa113c34-e213-4ed6-a4f0-0aea8a503e6b")
         private val isProdCluster: Boolean = System.getenv("NAIS_CLUSTER_NAME") == "prod-gcp"
     }
