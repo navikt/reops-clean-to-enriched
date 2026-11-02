@@ -1,19 +1,48 @@
 name: "Deploy"
-run-name: "Deploy"
+run-name: "Deploy (${{ github.event_name }}${{ github.event.inputs.environment && format(': {0}', github.event.inputs.environment) || '' }})"
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "dev: deploy selected ref. prod: promote latest dev-* tag (main only). prod-rebuild: rebuild latest prod-* tag on fresh base image."
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+          - prod-rebuild
+  schedule:
+    - cron: "0 3 * * *"
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 jobs:
   test:
     name: "test"
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yaml
+    permissions:
+      contents: read
+
+  build:
+    name: "build"
+    needs: [test]
+    if: >-
+      !cancelled() && needs.test.result != 'failure' && needs.test.result != 'cancelled' &&
+      (github.event_name == 'push' || github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+    outputs:
+      image: ${{ steps.docker-build-push.outputs.image }}
     steps:
       - uses: actions/checkout@v7
       - name: JDK
@@ -24,32 +53,11 @@ jobs:
       - name: Setup gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          dependency-graph: generate-and-submit
-      - name: Build and test
+          dependency-graph: ${{ github.event_name == 'push' && 'generate-and-submit' || 'disabled' }}
+      - name: Build jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew build
-      - name: Upload jar
-        uses: actions/upload-artifact@v7
-        with:
-          name: app-jar
-          path: build/libs/app.jar
-          retention-days: 1
-
-  docker:
-    name: "docker"
-    needs: [test]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-      - name: Download jar
-        uses: actions/download-artifact@v8
-        with:
-          name: app-jar
-          path: build/libs
+        run: ./gradlew bootJar
       - name: Build and push
         id: docker-build-push
         uses: nais/docker-build-push@v0
@@ -58,19 +66,15 @@ jobs:
           identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
           project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
           dockerfile: Dockerfile
-      - name: Show image for later prod deploy
-        run: |
-          echo "========================================"
-          echo "image=${{ steps.docker-build-push.outputs.image }}"
-          echo "========================================"
-    outputs:
-      image: ${{ steps.docker-build-push.outputs.image }}
+          pull: true
+          no_cache: ${{ github.event_name == 'schedule' }}
 
   deploy-dev:
-    needs: [test, docker]
+    name: "deploy-dev"
+    needs: [build]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v7
@@ -79,4 +83,112 @@ jobs:
         env:
           CLUSTER: dev-gcp
           RESOURCE: .nais/nais-dev.yaml
-          VAR: image=${{ needs.docker.outputs.image }}
+          VAR: image=${{ needs.build.outputs.image }}
+      - name: Tag dev deployment
+        if: github.event_name == 'push'
+        run: |
+          TAG="dev-$(date -u +%Y%m%d-%H%M%S)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Development deployment of ${GITHUB_SHA}" -m "Image: ${IMAGE}"
+          git push origin "$TAG"
+        env:
+          IMAGE: ${{ needs.build.outputs.image }}
+
+  promote-prod:
+    name: "promote-prod"
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Resolve latest dev image
+        id: dev
+        run: |
+          DEV_TAG=$(git tag -l 'dev-*' --sort=-creatordate | head -n 1)
+          if [ -z "$DEV_TAG" ]; then
+            echo "No dev-* tag found; push to main first." >&2
+            exit 1
+          fi
+          IMAGE=$(git tag -l --format='%(contents:body)' "$DEV_TAG" | sed -n 's/^Image: //p' | head -n 1)
+          if [ -z "$IMAGE" ]; then
+            echo "Tag $DEV_TAG has no 'Image:' line." >&2
+            exit 1
+          fi
+          echo "tag=$DEV_TAG" >> "$GITHUB_OUTPUT"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "Promoting $DEV_TAG: $IMAGE"
+      - name: Deploy to prod
+        uses: nais/deploy/actions/deploy@v2
+        env:
+          CLUSTER: prod-gcp
+          RESOURCE: .nais/nais-prod.yaml
+          VAR: image=${{ steps.dev.outputs.image }}
+      - name: Tag prod deployment
+        run: |
+          TAG="prod-$(date -u +%Y%m%d-%H%M%S)"
+          COMMIT=$(git rev-list -n 1 "$DEV_TAG")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" "$COMMIT" -m "Production deployment of ${COMMIT}" -m "Image: ${IMAGE}"
+          git push origin "$TAG"
+        env:
+          DEV_TAG: ${{ steps.dev.outputs.tag }}
+          IMAGE: ${{ steps.dev.outputs.image }}
+
+  rebuild-prod:
+    name: "rebuild-prod"
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod-rebuild')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Check out latest prod tag
+        run: |
+          TAG=$(git tag -l 'prod-*' --sort=-creatordate | head -n 1)
+          if [ -z "$TAG" ]; then
+            echo "No prod-* tag found; promote a release to prod first." >&2
+            exit 1
+          fi
+          git checkout --detach "$TAG"
+      - name: JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Setup gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          dependency-graph: disabled
+      - name: Build jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew bootJar
+      - name: Build and push
+        id: docker-build-push
+        uses: nais/docker-build-push@v0
+        with:
+          team: team-researchops
+          identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
+          project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
+          dockerfile: Dockerfile
+          pull: true
+          no_cache: true
+      - name: Deploy to prod
+        uses: nais/deploy/actions/deploy@v2
+        env:
+          CLUSTER: prod-gcp
+          RESOURCE: .nais/nais-prod.yaml
+          VAR: image=${{ steps.docker-build-push.outputs.image }}

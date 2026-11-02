@@ -1,5 +1,5 @@
 plugins {
-	id("org.springframework.boot") version "4.0.5"
+	id("org.springframework.boot") version "4.0.9"
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("jvm") version "2.3.20"
 	kotlin("plugin.spring") version "2.3.20"
@@ -22,6 +22,15 @@ repositories {
 }
 
 dependencies {
+	constraints {
+		implementation("at.yawk.lz4:lz4-java:1.12.1") {
+			because("CVEs in transitive 1.10.1 from kafka-clients")
+		}
+		implementation("org.xerial.snappy:snappy-java:1.1.10.12") {
+			because("CVEs in transitive 1.1.10.7 from kafka-clients")
+		}
+	}
+
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 	implementation("org.springframework.boot:spring-boot-starter-webclient")
