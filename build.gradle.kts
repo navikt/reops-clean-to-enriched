@@ -1,9 +1,9 @@
 plugins {
-	id("org.springframework.boot") version "4.0.9"
+	id("org.springframework.boot") version "4.1.2"
 	id("io.spring.dependency-management") version "1.1.7"
-	kotlin("jvm") version "2.3.20"
-	kotlin("plugin.spring") version "2.3.20"
-	kotlin("plugin.jpa") version "2.3.20"
+	kotlin("jvm") version "2.4.21"
+	kotlin("plugin.spring") version "2.4.21"
+	kotlin("plugin.jpa") version "2.4.21"
 }
 
 group = "no.nav.reops"
@@ -50,7 +50,7 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlin:kotlin-stdlib")
 	implementation("io.micrometer:micrometer-registry-prometheus")
-	implementation("com.maxmind.geoip2:geoip2:5.0.2")
+	implementation("com.maxmind.geoip2:geoip2:5.2.0")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
@@ -58,7 +58,7 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 	testImplementation("org.springframework.kafka:spring-kafka-test")
 	testImplementation("org.springframework.security:spring-security-test")
-	testImplementation("org.mockito.kotlin:mockito-kotlin:6.3.0")
+	testImplementation("org.mockito.kotlin:mockito-kotlin:6.4.0")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("com.h2database:h2")
 }
