@@ -33,3 +33,6 @@ replay_pid*
 /.compose/kafka/controller-1/
 .DS_Store
 !gradle/wrapper/gradle-wrapper.jar
+
+# Python release-resolution tests
+__pycache__/

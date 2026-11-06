@@ -82,3 +82,10 @@ application image, not committed to Git. The nightly production rebuild refreshe
 them after this change is promoted. No runtime download or dashboard attribution
 is required. See [country enrichment](docs/ip-country.md) and
 [third-party data notices](src/main/resources/THIRD-PARTY-NOTICES.md).
+
+## Deployment
+
+Pushes to main test and deploy to dev. Prod promotion is manual. Daily refreshes
+rebuild the latest tagged dev/prod releases, not main HEAD. Manual deployments
+also support previous release tags for redeployment or rollback. See
+[deployment behavior and release selection](docs/deployment.md).
