@@ -16,7 +16,7 @@ analytics-clean (Kafka)
         │
         ▼
   EventEnrichment
-  ├── GeoIP-oppslag (MaxMind GeoIP2) → land
+   ├── IPtoASN-oppslag → land
   ├── User-Agent-parsing → nettleser / OS / enhet
   ├── Sesjons-ID (deterministisk hash: website + hostname + IP + UA + måned + salt)
   ├── Besøks-ID (deterministisk hash: sesjon + time)
@@ -71,6 +71,14 @@ Native image (krever GraalVM):
 - Spring Data JPA + PostgreSQL 18 (NAIS Cloud SQL)
 - Flyway (DB-migrasjoner)
 - Caffeine (in-memory cache)
-- MaxMind GeoIP2
+- IPtoASN country data (PDDL; fetched on every build, local IPv4/IPv6 lookup)
 - GraalVM Native Image
 - NAIS (Kubernetes, Aiven Kafka, autoskalering basert på Kafka-lag)
+
+## Country data
+
+Country datasets are downloaded fresh during each build and bundled in the
+application image, not committed to Git. The nightly production rebuild refreshes
+them after this change is promoted. No runtime download or dashboard attribution
+is required. See [country enrichment](docs/ip-country.md) and
+[third-party data notices](src/main/resources/THIRD-PARTY-NOTICES.md).

@@ -2,14 +2,16 @@ package no.nav.reops.event
 
 import no.nav.reops.geo.GeoIpService
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GeoIpServiceTest {
 
     private lateinit var geoIpService: GeoIpService
 
-    @BeforeEach
+    @BeforeAll
     fun setUp() {
         geoIpService = GeoIpService()
         geoIpService.init()
@@ -52,5 +54,24 @@ class GeoIpServiceTest {
     fun `returns null for invalid ip`() {
         assertThat(geoIpService.lookupCountry("not-an-ip")).isNull()
     }
-}
 
+    @Test
+    fun `rejects hostnames and non-canonical IPv4 addresses`() {
+        for (ip in listOf("google.com", "localhost", "127.1", "134744072", "010.0.0.1", "8.8.8.256", "[::1]", "fe80::1%en0")) {
+            assertThat(geoIpService.lookupCountry(ip)).describedAs(ip).isNull()
+        }
+    }
+
+    @Test
+    fun `returns null for non-public IPv6 addresses`() {
+        for (ip in listOf("::", "::1", "fe80::1", "fc00::1", "fd12:3456::1", "ff02::1", "::ffff:192.168.1.1")) {
+            assertThat(geoIpService.lookupCountry(ip)).describedAs(ip).isNull()
+        }
+    }
+
+    @Test
+    fun `supports public IPv6 and IPv4 mapped IPv6`() {
+        assertThat(geoIpService.lookupCountry("::ffff:8.8.8.8")).isEqualTo(geoIpService.lookupCountry("8.8.8.8"))
+        assertThat(geoIpService.lookupCountry("2001:4860:4860::8888")).matches("[A-Z]{2}")
+    }
+}
