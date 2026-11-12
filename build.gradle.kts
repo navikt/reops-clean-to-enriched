@@ -5,11 +5,11 @@ import java.time.Instant
 import java.util.zip.GZIPInputStream
 
 plugins {
-	id("org.springframework.boot") version "4.0.9"
+	id("org.springframework.boot") version "4.1.2"
 	id("io.spring.dependency-management") version "1.1.7"
-	kotlin("jvm") version "2.3.20"
-	kotlin("plugin.spring") version "2.3.20"
-	kotlin("plugin.jpa") version "2.3.20"
+	kotlin("jvm") version "2.4.21"
+	kotlin("plugin.spring") version "2.4.21"
+	kotlin("plugin.jpa") version "2.4.21"
 }
 
 group = "no.nav.reops"
@@ -29,7 +29,7 @@ repositories {
 
 dependencies {
 	constraints {
-		implementation("at.yawk.lz4:lz4-java:1.12.1") {
+		implementation("at.yawk.lz4:lz4-java:1.14.0") {
 			because("CVEs in transitive 1.10.1 from kafka-clients")
 		}
 		implementation("org.xerial.snappy:snappy-java:1.1.10.12") {
@@ -63,7 +63,7 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 	testImplementation("org.springframework.kafka:spring-kafka-test")
 	testImplementation("org.springframework.security:spring-security-test")
-	testImplementation("org.mockito.kotlin:mockito-kotlin:6.3.0")
+	testImplementation("org.mockito.kotlin:mockito-kotlin:6.4.0")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("com.h2database:h2")
 }
