@@ -221,7 +221,7 @@ class WebsiteManagementControllerTest {
             controller.create(user(), UpsertWebsiteRequest("X", "x.nav.no", null)).block()
         }
         assertThat(ex.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
-        verify(websiteService, never()).create(any(), any(), any(), any())
+        verify(websiteService, never()).create(any(), any(), any(), any(), eq(null))
     }
 
     @Test
@@ -231,7 +231,7 @@ class WebsiteManagementControllerTest {
             controller.create(user(), UpsertWebsiteRequest("X", "x.nav.no", teamB.id)).block()
         }
         assertThat(ex.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
-        verify(websiteService, never()).create(any(), any(), any(), any())
+        verify(websiteService, never()).create(any(), any(), any(), any(), eq(null))
     }
 
     @Test
@@ -247,7 +247,7 @@ class WebsiteManagementControllerTest {
     fun `non-admin create with own team ownerTeamId returns 201 with Location and normalizes domain`() {
         val created = registration(ownerTeamId = teamA.id)
         stubTeams("Z123456", listOf(teamA))
-        whenever(websiteService.create(eq("X"), eq("x.nav.no"), eq(teamA.id), eq("Z123456"))).thenReturn(created)
+        whenever(websiteService.create(eq("X"), eq("x.nav.no"), eq(teamA.id), eq("Z123456"), eq(null))).thenReturn(created)
 
         val response = controller.create(user(), UpsertWebsiteRequest("X", "  X.NAV.no ", teamA.id)).block()!!
 
@@ -261,11 +261,48 @@ class WebsiteManagementControllerTest {
     fun `ReOps admin may create unassigned registration`() {
         val created = registration(ownerTeamId = null)
         stubTeams("Z123456", listOf(reopsTeam))
-        whenever(websiteService.create(eq("X"), eq("x.nav.no"), eq(null), any())).thenReturn(created)
+        whenever(websiteService.create(eq("X"), eq("x.nav.no"), eq(null), any(), eq(null))).thenReturn(created)
 
         val response = controller.create(user(), UpsertWebsiteRequest("X", "x.nav.no", null)).block()!!
 
         assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
+    }
+
+    @Test
+    fun `ReOps admin may create with an explicit website ID`() {
+        val websiteId = UUID.randomUUID()
+        val created = registration(websiteId = websiteId, ownerTeamId = null)
+        stubTeams("Z123456", listOf(reopsTeam))
+        whenever(websiteService.create("X", "x.nav.no", null, "Z123456", websiteId)).thenReturn(created)
+
+        val response = controller.create(user(), UpsertWebsiteRequest("X", "x.nav.no", null, websiteId)).block()!!
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.CREATED)
+        assertThat(response.body!!.websiteId).isEqualTo(websiteId)
+        assertThat(response.headers.location.toString()).endsWith("/api/manage/websites/$websiteId")
+    }
+
+    @Test
+    fun `non-admin cannot create with explicit ID even for own team`() {
+        val websiteId = UUID.randomUUID()
+        stubTeams("Z123456", listOf(teamA))
+
+        val ex = assertThrows<ErrorResponseException> {
+            controller.create(user(), UpsertWebsiteRequest("X", "x.nav.no", teamA.id, websiteId)).block()
+        }
+
+        assertThat(ex.statusCode).isEqualTo(HttpStatus.FORBIDDEN)
+        verify(websiteService, never()).create(any(), any(), any(), any(), any())
+    }
+
+    @Test
+    fun `update rejects a supplied website ID`() {
+        val websiteId = UUID.randomUUID()
+        val ex = assertThrows<ErrorResponseException> {
+            controller.update(user(), websiteId, UpsertWebsiteRequest("X", "x.nav.no", null, websiteId)).block()
+        }
+        assertThat(ex.statusCode).isEqualTo(HttpStatus.BAD_REQUEST)
+        verify(websiteService, never()).update(any(), any(), any(), any(), any(), any())
     }
 
     // --- update ---

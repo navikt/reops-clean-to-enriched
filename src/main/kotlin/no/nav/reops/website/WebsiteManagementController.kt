@@ -53,6 +53,8 @@ data class UpsertWebsiteRequest(
     )
     val domain: String,
     val ownerTeamId: UUID? = null,
+    // Creation only, ReOps only. Omitted/null keeps server-generated IDs.
+    val websiteId: UUID? = null,
 )
 
 /**
@@ -144,6 +146,9 @@ class WebsiteManagementController(
         return callerTeams(user).flatMap { teams ->
             val isAdmin = user.isReopsMember(teams)
             val ownerTeamId = request.ownerTeamId
+            if (request.websiteId != null && !isAdmin) {
+                throw ErrorResponseException(HttpStatus.FORBIDDEN)
+            }
             if (!isAdmin) {
                 // Non-admin must assign ownership to one of their own verified teams;
                 // unassigned (null) is not permitted for self-service creation.
@@ -152,7 +157,7 @@ class WebsiteManagementController(
                 }
             }
             // Admin may choose any team UUID, or null for unassigned.
-            Mono.fromCallable { websiteService.create(name, domain, ownerTeamId, user.navIdent) }
+            Mono.fromCallable { websiteService.create(name, domain, ownerTeamId, user.navIdent, request.websiteId) }
                 .subscribeOn(Schedulers.boundedElastic())
                 .map { created ->
                     ResponseEntity
@@ -169,6 +174,9 @@ class WebsiteManagementController(
         @Validated @RequestBody request: UpsertWebsiteRequest,
     ): Mono<WebsiteRegistration> {
         val user = userFrom(token)
+        if (request.websiteId != null) {
+            throw ErrorResponseException(HttpStatus.BAD_REQUEST)
+        }
         val name = request.name.trim()
         val domain = request.domain.trim().lowercase()
         return callerTeams(user).flatMap { teams ->

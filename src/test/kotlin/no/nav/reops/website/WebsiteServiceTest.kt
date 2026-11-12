@@ -14,6 +14,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.dao.DataIntegrityViolationException
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
@@ -66,6 +67,51 @@ class WebsiteServiceTest {
         verify(kafkaTemplate).send(eq(websiteTopic), any<String>(), eventCaptor.capture())
         assertThat(eventCaptor.firstValue.status).isEqualTo(WebsiteEventStatus.CREATE)
         assertThat(eventCaptor.firstValue.website.deletedAt).isNull()
+    }
+
+    @Test
+    fun `create with a chosen ID preserves identity and publishes active metadata`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.save(any<WebsiteEntity>())).thenAnswer { it.arguments[0] }
+
+        val result = service.create("Restored", "restored.nav.no", null, actor, websiteId)
+
+        assertThat(result.websiteId).isEqualTo(websiteId)
+        assertThat(result.deletedAt).isNull()
+        val entityCaptor = argumentCaptor<WebsiteEntity>()
+        verify(websiteRepository).save(entityCaptor.capture())
+        assertThat(entityCaptor.firstValue.version).isNull() // persist, never merge/upsert
+        val eventCaptor = argumentCaptor<WebsiteChangeEvent>()
+        verify(kafkaTemplate).send(eq(websiteTopic), eq(websiteId.toString()), eventCaptor.capture())
+        assertThat(eventCaptor.firstValue.status).isEqualTo(WebsiteEventStatus.CREATE)
+        assertThat(eventCaptor.firstValue.website.websiteId).isEqualTo(websiteId)
+    }
+
+    @Test
+    fun `create rejects existing IDs including soft-deleted registrations without mutations`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.existsById(websiteId)).thenReturn(true)
+
+        assertThrows<WebsiteAlreadyExistsException> {
+            service.create("Restored", "restored.nav.no", null, actor, websiteId)
+        }
+
+        verify(websiteRepository, never()).save(any<WebsiteEntity>())
+        verify(kafkaTemplate, never()).send(any<String>(), any<String>(), any())
+    }
+
+    @Test
+    fun `concurrent duplicate create maps primary key violation to conflict without publication`() {
+        val websiteId = UUID.randomUUID()
+        whenever(websiteRepository.existsById(websiteId)).thenReturn(false, true)
+        whenever(websiteRepository.save(any<WebsiteEntity>())).thenThrow(DataIntegrityViolationException("duplicate"))
+
+        val ex = assertThrows<WebsiteAlreadyExistsException> {
+            service.create("Restored", "restored.nav.no", null, actor, websiteId)
+        }
+
+        assertThat(GlobalExceptionHandler().handleAlreadyExists(ex).status).isEqualTo(409)
+        verify(kafkaTemplate, never()).send(any<String>(), any<String>(), any())
     }
 
     @Test

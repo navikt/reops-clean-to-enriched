@@ -21,6 +21,10 @@ import org.springframework.web.server.ServerWebInputException
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
+    @ExceptionHandler(WebsiteAlreadyExistsException::class)
+    fun handleAlreadyExists(ex: WebsiteAlreadyExistsException): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.message)
+
     @ExceptionHandler(WebsiteNotFoundException::class)
     fun handleNotFound(ex: WebsiteNotFoundException): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.message)

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.cache.annotation.CacheEvict
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.cache.annotation.Caching
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -20,6 +21,8 @@ import java.util.UUID
  */
 class WebsiteConflictException(websiteId: UUID) :
     RuntimeException("Website was modified concurrently: $websiteId")
+
+class WebsiteAlreadyExistsException : RuntimeException("Nettside-ID-en er allerede registrert. Bruk en annen ID.")
 
 @Service
 class WebsiteService(
@@ -65,19 +68,36 @@ class WebsiteService(
         evict = [
             CacheEvict("websites", allEntries = true),
             CacheEvict("website", key = "#result.websiteId"),
+            CacheEvict("websiteAllowed", key = "#result.websiteId"),
         ]
     )
-    fun create(name: String, domain: String, ownerTeamId: UUID?, actorNavIdent: String): WebsiteRegistration {
+    fun create(
+        name: String,
+        domain: String,
+        ownerTeamId: UUID?,
+        actorNavIdent: String,
+        websiteId: UUID? = null,
+    ): WebsiteRegistration {
+        val resolvedId = websiteId ?: UUID.randomUUID()
+        // Includes soft-deleted rows: creation must never overwrite or revive them.
+        if (websiteRepository.existsById(resolvedId)) throw WebsiteAlreadyExistsException()
         val now = Instant.now()
         val entity = WebsiteEntity(
-            websiteId = UUID.randomUUID(),
+            websiteId = resolvedId,
             name = name,
             domain = domain,
             updatedAt = now,
             createdAt = now,
             ownerTeamId = ownerTeamId,
         )
-        val saved = websiteRepository.save(entity)
+        // Null @Version makes this INSERT-only. The primary key also guards concurrent
+        // creates after the existence check; translate that race without leaking SQL.
+        val saved = try {
+            websiteRepository.save(entity)
+        } catch (ex: DataIntegrityViolationException) {
+            if (websiteRepository.existsById(resolvedId)) throw WebsiteAlreadyExistsException()
+            throw ex
+        }
         audit(actorNavIdent, "CREATE", saved.websiteId)
         publishEvent(saved.toKafkaDto(), WebsiteEventStatus.CREATE)
         return saved.toRegistration()
