@@ -46,10 +46,16 @@ class WebsiteRepositoryTest {
     }
 
     @Test
-    fun `insert with an existing ID cannot overwrite an active or soft-deleted registration`() {
-        for (deletedAt in listOf(null, Instant.now())) {
+    fun `insert cannot overwrite an ID still registered in Postgres`() {
+        val timestamp = Instant.parse("2026-01-01T00:00:00.123456789Z")
+        for (deletedAt in listOf(null, timestamp)) {
             val id = UUID.randomUUID()
-            val existing = repository.save(WebsiteEntity(websiteId = id, name = "original", domain = "a.no", deletedAt = deletedAt))
+            repository.save(WebsiteEntity(
+                websiteId = id, name = "original", domain = "a.no",
+                createdAt = timestamp, updatedAt = timestamp, deletedAt = deletedAt,
+            ))
+            // Compare persisted snapshots: SQL timestamps round nanoseconds to microseconds.
+            val existing = repository.findById(id).orElseThrow()
             try {
                 assertThatThrownBy {
                     repository.save(WebsiteEntity(websiteId = id, name = "replacement", domain = "b.no"))
