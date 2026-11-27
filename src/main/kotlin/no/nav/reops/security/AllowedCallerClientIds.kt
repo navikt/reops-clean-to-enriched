@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper
  *   `[ {"name":"<cluster>:<namespace>:<application>","clientId":"<uuid>"}, ... ]`
  *
  * The app name is derived from Nais `UniformResourceName` = `cluster:namespace:name`.
- * We match the exact same-cluster/same-namespace entry for `reops-innblikk-frontend`.
+ * We match the exact same-cluster/same-namespace entry for the configured Innblikk app.
  * Fails closed (empty) on a missing/blank/malformed value or when no matching entry
  * exists — never trust a partial parse.
  */
@@ -23,19 +23,21 @@ class AllowedCallerClientIds(
     @param:Value("\${app.security.pre-authorized-apps-json:}") preAuthorizedAppsJson: String,
     @param:Value("\${NAIS_CLUSTER_NAME:}") clusterName: String,
     @param:Value("\${NAIS_NAMESPACE:}") namespace: String,
+    @param:Value("\${app.security.caller-application:reops-innblikk-frontend}") callerApplication: String = "reops-innblikk-frontend",
 ) {
     data class PreAuthorizedApp(
         val name: String? = null,
         val clientId: String? = null,
     )
 
-    val clientIds: Set<String> = parse(objectMapper, preAuthorizedAppsJson, clusterName, namespace)
+    val clientIds: Set<String> = parse(objectMapper, preAuthorizedAppsJson, clusterName, namespace, callerApplication)
 
     private fun parse(
         objectMapper: ObjectMapper,
         json: String,
         clusterName: String,
         namespace: String,
+        callerApplication: String,
     ): Set<String> {
         if (json.isBlank()) {
             LOG.warn("AZURE_APP_PRE_AUTHORIZED_APPS is empty — no callers will be allowed (fail closed)")
@@ -45,7 +47,7 @@ class AllowedCallerClientIds(
             LOG.warn("NAIS_CLUSTER_NAME/NAIS_NAMESPACE not set — cannot resolve expected caller, failing closed")
             return emptySet()
         }
-        val expectedName = "$clusterName:$namespace:$CALLER_APPLICATION"
+        val expectedName = "$clusterName:$namespace:$callerApplication"
         return try {
             val apps = objectMapper.readValue(json, Array<PreAuthorizedApp>::class.java).toList()
             val matches = apps.filter { it.name == expectedName }.mapNotNull { it.clientId }.toSet()
@@ -66,6 +68,5 @@ class AllowedCallerClientIds(
 
     private companion object {
         private val LOG = LoggerFactory.getLogger(AllowedCallerClientIds::class.java)
-        private const val CALLER_APPLICATION = "reops-innblikk-frontend"
     }
 }

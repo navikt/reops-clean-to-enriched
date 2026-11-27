@@ -165,6 +165,22 @@ class AllowedCallerClientIdsTest {
     }
 
     @Test
+    fun `test deployment only trusts the test frontend`() {
+        val testClientId = UUID.randomUUID().toString()
+        val parsed = AllowedCallerClientIds(
+            mapper,
+            """[
+                {"name":"dev-gcp:team-researchops:reops-innblikk-frontend","clientId":"${UUID.randomUUID()}"},
+                {"name":"dev-gcp:team-researchops:reops-innblikk-frontend-test","clientId":"$testClientId"}
+            ]""",
+            "dev-gcp",
+            "team-researchops",
+            callerApplication = "reops-innblikk-frontend-test",
+        )
+        assertThat(parsed.clientIds).containsExactly(testClientId)
+    }
+
+    @Test
     fun `fails closed on blank json`() {
         assertThat(AllowedCallerClientIds(mapper, "", "dev-gcp", "team-researchops").clientIds).isEmpty()
         assertThat(AllowedCallerClientIds(mapper, "   ", "dev-gcp", "team-researchops").clientIds).isEmpty()

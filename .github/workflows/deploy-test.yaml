@@ -1,0 +1,57 @@
+name: "Deploy Test (Manual)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build, including a PR's source branch in this repository"
+        type: string
+        default: main
+
+concurrency:
+  group: deploy-test-manual
+  cancel-in-progress: false
+
+jobs:
+  deploy-test:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/heads/${{ inputs.branch }}
+          persist-credentials: false
+      - name: Require test Spring profile in selected branch
+        run: test -f src/main/resources/application-kubernetes-test.yaml
+      - name: JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: Build jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gradlew bootJar
+      - name: Build and push test image
+        id: image
+        uses: nais/docker-build-push@v0
+        with:
+          team: team-researchops
+          identity_provider: ${{ secrets.NAIS_WORKLOAD_IDENTITY_PROVIDER }}
+          project_id: ${{ vars.NAIS_MANAGEMENT_PROJECT_ID }}
+          image_suffix: test
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Deploy clean-to-enriched to test
+        uses: nais/deploy/actions/deploy@v2
+        env:
+          CLUSTER: dev-gcp
+          RESOURCE: .nais/nais-test.yaml
+          VAR: image=${{ steps.image.outputs.image }}
