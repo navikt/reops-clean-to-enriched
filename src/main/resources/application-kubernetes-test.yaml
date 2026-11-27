@@ -1,0 +1,17 @@
+spring:
+  kafka:
+    topic: team-researchops.analytics-test-clean
+    output-topic: team-researchops.analytics-test-enriched
+    website-topic: team-researchops.analytics-test-website
+    consumer:
+      group-id: reops-clean-to-enriched-test
+    listener:
+      concurrency: 1
+  datasource:
+    url: ${NAIS_DATABASE_REOPS_CLEAN_TO_ENRICHED_TEST_REOPS_CLEAN_TO_ENRICHED_TEST_JDBC_URL}
+    username: ${NAIS_DATABASE_REOPS_CLEAN_TO_ENRICHED_TEST_REOPS_CLEAN_TO_ENRICHED_TEST_USERNAME}
+    password: ${NAIS_DATABASE_REOPS_CLEAN_TO_ENRICHED_TEST_REOPS_CLEAN_TO_ENRICHED_TEST_PASSWORD}
+
+app:
+  security:
+    caller-application: reops-innblikk-frontend-test
